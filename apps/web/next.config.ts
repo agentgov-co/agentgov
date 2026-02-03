@@ -2,6 +2,17 @@ import type { NextConfig } from "next";
 import { withSentryConfig } from "@sentry/nextjs";
 import bundleAnalyzer from "@next/bundle-analyzer";
 import { buildSecurityHeaders } from "./src/lib/security-headers";
+import { validateEnv } from "./src/lib/env-validation";
+
+// Build-time environment validation — fails fast before deployment
+if (process.env.NODE_ENV === 'production') {
+  const result = validateEnv(process.env as Record<string, string | undefined>);
+  if (!result.valid) {
+    throw new Error(
+      `[agentgov] Build aborted — environment validation failed:\n${result.errors.map(e => `  - ${e}`).join('\n')}`
+    );
+  }
+}
 
 const withBundleAnalyzer = bundleAnalyzer({
   enabled: process.env.ANALYZE === 'true',

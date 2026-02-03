@@ -2,6 +2,7 @@ import { FastifyRequest, FastifyReply } from 'fastify'
 import { createHash, timingSafeEqual } from 'crypto'
 import { prisma } from '../lib/prisma.js'
 import { getCachedApiKey, setCachedApiKey } from '../lib/redis.js'
+import { isIpAllowed } from '../lib/ip-utils.js'
 
 // ===========================================
 // SESSION AUTH GUARDS (for dashboard/UI)
@@ -70,6 +71,7 @@ interface ApiKeyContext {
   organizationId: string | null
   projectId: string | null
   permissions: string[]
+  allowedIps: string[]
   rateLimit: number
   expiresAt: Date | null
   lastUsedAt: Date | null
@@ -149,6 +151,17 @@ export async function requireApiKey(
     })
   }
 
+  // Check IP whitelist
+  if (key.allowedIps && key.allowedIps.length > 0) {
+    if (!isIpAllowed(request.ip, key.allowedIps)) {
+      return reply.status(403).send({
+        error: 'Forbidden',
+        message: 'IP address not allowed for this API key',
+        code: 'IP_NOT_ALLOWED',
+      })
+    }
+  }
+
   // Update last used timestamp
   await prisma.apiKey.update({
     where: { id: key.id },
@@ -164,6 +177,7 @@ export async function requireApiKey(
     organizationId: key.organizationId,
     projectId: key.projectId,
     permissions: key.permissions,
+    allowedIps: key.allowedIps ?? [],
     rateLimit: key.rateLimit,
     expiresAt: key.expiresAt,
     lastUsedAt: key.lastUsedAt,
