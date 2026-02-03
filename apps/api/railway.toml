@@ -1,6 +1,6 @@
 [build]
 builder = "nixpacks"
-buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm build:api && cd apps/api && npx prisma db push --skip-generate"
+buildCommand = "pnpm install --frozen-lockfile && pnpm build:api && cd apps/api && npx prisma db push --skip-generate"
 
 [deploy]
 startCommand = "pnpm --filter @agentgov/api start:migrate"
