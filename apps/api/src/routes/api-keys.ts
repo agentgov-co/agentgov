@@ -11,11 +11,13 @@ const CreateApiKeySchema = z.object({
   name: z.string().min(1).max(100),
   projectId: z.string().optional(),
   expiresInDays: z.number().min(1).max(365).optional(),
+  allowedIps: z.array(z.string().min(1).max(45)).max(50).optional(),
 })
 
 const UpdateApiKeySchema = z.object({
   name: z.string().min(1).max(100).optional(),
   rateLimit: z.number().min(100).max(100000).optional(),
+  allowedIps: z.array(z.string().min(1).max(45)).max(50).optional(),
 })
 
 // Generate API key with prefix
@@ -81,7 +83,7 @@ export async function apiKeyRoutes(fastify: FastifyInstance): Promise<void> {
       })
     }
 
-    const { name, projectId, expiresInDays } = parsed.data
+    const { name, projectId, expiresInDays, allowedIps } = parsed.data
 
     // Verify project belongs to organization if specified
     if (projectId) {
@@ -112,6 +114,7 @@ export async function apiKeyRoutes(fastify: FastifyInstance): Promise<void> {
         organizationId: org.id,
         projectId: projectId || null,
         expiresAt,
+        allowedIps: allowedIps ?? [],
       },
       select: {
         id: true,
