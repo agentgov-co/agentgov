@@ -16,14 +16,12 @@ describe('robots.txt generation', () => {
     const { default: robots } = await import('./robots')
     const result = robots()
 
-    const generalRule = result.rules
-    const mainRule = Array.isArray(generalRule)
-      ? generalRule.find(r => r.userAgent === '*')
-      : generalRule
+    const rules = Array.isArray(result.rules) ? result.rules : [result.rules]
+    const mainRule = rules.find(r => r.userAgent === '*')
     expect(mainRule?.allow).toBe('/')
   })
 
-  it('should disallow /dashboard/ and /api/ for general crawlers', async () => {
+  it('should disallow /dashboard/, /api/, and /sentry-example-page for general crawlers', async () => {
     const { default: robots } = await import('./robots')
     const result = robots()
 
@@ -31,28 +29,36 @@ describe('robots.txt generation', () => {
     const mainRule = rules.find(r => r.userAgent === '*')
     expect(mainRule?.disallow).toContain('/dashboard/')
     expect(mainRule?.disallow).toContain('/api/')
-  })
-
-  it('should disallow /sentry-example-page for general crawlers', async () => {
-    const { default: robots } = await import('./robots')
-    const result = robots()
-
-    const rules = Array.isArray(result.rules) ? result.rules : [result.rules]
-    const mainRule = rules.find(r => r.userAgent === '*')
     expect(mainRule?.disallow).toContain('/sentry-example-page')
   })
 
-  it('should block AI crawlers (GPTBot, CCBot, Google-Extended)', async () => {
+  it('should block AI training bots (CCBot, Google-Extended, Bytespider, Diffbot)', async () => {
     const { default: robots } = await import('./robots')
     const result = robots()
 
     const rules = Array.isArray(result.rules) ? result.rules : [result.rules]
-    const blockedBots = ['GPTBot', 'CCBot', 'Google-Extended']
+    const trainingBots = ['CCBot', 'Google-Extended', 'Bytespider', 'Diffbot', 'FacebookBot', 'omgili']
 
-    for (const bot of blockedBots) {
+    for (const bot of trainingBots) {
       const rule = rules.find(r => r.userAgent === bot)
-      expect(rule, `Expected rule for ${bot}`).toBeDefined()
+      expect(rule, `Expected blocking rule for ${bot}`).toBeDefined()
       expect(rule?.disallow).toBe('/')
+    }
+  })
+
+  it('should explicitly allow AI search bots (GPTBot, ChatGPT-User, ClaudeBot, Claude-SearchBot, PerplexityBot, Perplexity-User, anthropic-ai)', async () => {
+    const { default: robots } = await import('./robots')
+    const result = robots()
+
+    const rules = Array.isArray(result.rules) ? result.rules : [result.rules]
+    const searchBots = ['GPTBot', 'ChatGPT-User', 'ClaudeBot', 'Claude-SearchBot', 'PerplexityBot', 'Perplexity-User', 'anthropic-ai']
+
+    for (const bot of searchBots) {
+      const rule = rules.find(r => r.userAgent === bot)
+      expect(rule, `Expected allow rule for ${bot}`).toBeDefined()
+      expect(rule?.allow).toBe('/')
+      expect(rule?.disallow).toContain('/dashboard/')
+      expect(rule?.disallow).toContain('/api/')
     }
   })
 
