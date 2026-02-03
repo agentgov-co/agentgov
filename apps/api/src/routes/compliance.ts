@@ -18,6 +18,7 @@ import {
 import { classifyRisk } from '../services/risk-classification.service.js'
 import { generateDocument } from '../services/document-generator.service.js'
 import { auditService } from '../services/audit.js'
+import { cached, queryHash, cacheDeletePattern, cacheDelete, CACHE_TTL, CACHE_KEYS } from '../lib/redis.js'
 import type { Prisma } from '../generated/prisma/client.js'
 
 export async function complianceRoutes(fastify: FastifyInstance): Promise<void> {
@@ -149,6 +150,12 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
       }
     })
 
+    // Invalidate compliance caches after new assessment
+    await Promise.all([
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_SYSTEMS}*`),
+    ])
+
     await auditService.log({
       action: 'compliance.system_assessed',
       userId: request.user?.id,
@@ -198,37 +205,45 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
       where.complianceStatus = query.complianceStatus
     }
 
-    const [systems, total] = await Promise.all([
-      prisma.aISystem.findMany({
-        where,
-        include: {
-          project: {
-            select: { id: true, name: true }
-          },
-          _count: {
-            select: {
-              obligations: true,
-              documents: true,
-              incidents: true
-            }
-          }
-        },
-        orderBy: { createdAt: 'desc' },
-        take: query.limit,
-        skip: query.offset
-      }),
-      prisma.aISystem.count({ where })
-    ])
+    const cacheKey = `${CACHE_KEYS.COMPLIANCE_SYSTEMS}${org.id}:${queryHash(query as unknown as Record<string, unknown>)}`
 
-    return {
-      data: systems,
-      pagination: {
-        total,
-        limit: query.limit,
-        offset: query.offset,
-        hasMore: query.offset + systems.length < total
+    return cached(cacheKey, CACHE_TTL.COMPLIANCE_SYSTEMS, async () => {
+      const [systems, total] = await Promise.all([
+        prisma.aISystem.findMany({
+          where,
+          omit: {
+            wizardData: true,
+            riskReasoning: true,
+          },
+          include: {
+            project: {
+              select: { id: true, name: true }
+            },
+            _count: {
+              select: {
+                obligations: true,
+                documents: true,
+                incidents: true
+              }
+            }
+          },
+          orderBy: { createdAt: 'desc' },
+          take: query.limit,
+          skip: query.offset
+        }),
+        prisma.aISystem.count({ where })
+      ])
+
+      return {
+        data: systems,
+        pagination: {
+          total,
+          limit: query.limit,
+          offset: query.offset,
+          hasMore: query.offset + systems.length < total
+        }
       }
-    }
+    })
   })
 
   // GET /v1/compliance/systems/:id - Get single AI system
@@ -239,48 +254,52 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
     const org = request.organization!
     const { id } = request.params
 
-    const system = await prisma.aISystem.findFirst({
-      where: {
-        id,
-        project: {
-          organizationId: org.id
-        }
-      },
-      include: {
-        project: {
-          select: { id: true, name: true }
-        },
-        obligations: {
-          take: 100,
-          orderBy: { articleNumber: 'asc' }
-        },
-        documents: {
-          take: 50,
-          orderBy: { createdAt: 'desc' }
-        },
-        incidents: {
-          orderBy: { occurredAt: 'desc' },
-          take: 10
-        },
-        oversightConfig: true,
-        traces: {
-          orderBy: { startedAt: 'desc' },
-          take: 5,
-          select: {
-            id: true,
-            name: true,
-            status: true,
-            startedAt: true,
-            endedAt: true,
-            totalCost: true,
-            totalTokens: true,
-            totalDuration: true
+    const cacheKey = `${CACHE_KEYS.COMPLIANCE_SYSTEM}${id}`
+
+    const system = await cached(cacheKey, CACHE_TTL.COMPLIANCE_SYSTEM, async () => {
+      return prisma.aISystem.findFirst({
+        where: {
+          id,
+          project: {
+            organizationId: org.id
           }
         },
-        _count: {
-          select: { traces: true }
+        include: {
+          project: {
+            select: { id: true, name: true }
+          },
+          obligations: {
+            take: 100,
+            orderBy: { articleNumber: 'asc' }
+          },
+          documents: {
+            take: 50,
+            orderBy: { createdAt: 'desc' }
+          },
+          incidents: {
+            orderBy: { occurredAt: 'desc' },
+            take: 10
+          },
+          oversightConfig: true,
+          traces: {
+            orderBy: { startedAt: 'desc' },
+            take: 5,
+            select: {
+              id: true,
+              name: true,
+              status: true,
+              startedAt: true,
+              endedAt: true,
+              totalCost: true,
+              totalTokens: true,
+              totalDuration: true
+            }
+          },
+          _count: {
+            select: { traces: true }
+          }
         }
-      }
+      })
     })
 
     if (!system) {
@@ -383,6 +402,13 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
       data: parsed.data
     })
 
+    // Invalidate caches
+    await Promise.all([
+      cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${id}`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_SYSTEMS}*`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+    ])
+
     await auditService.log({
       action: 'compliance.system_updated',
       userId: request.user?.id,
@@ -421,6 +447,13 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
     }
 
     await prisma.aISystem.delete({ where: { id } })
+
+    // Invalidate caches
+    await Promise.all([
+      cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${id}`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_SYSTEMS}*`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+    ])
 
     await auditService.log({
       action: 'compliance.system_deleted',
@@ -478,6 +511,12 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
         completedAt: parsed.data.status === 'COMPLETED' ? new Date() : null
       }
     })
+
+    // Invalidate caches — obligation changes affect system detail and stats
+    await Promise.all([
+      cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${existing.aiSystemId}`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+    ])
 
     await auditService.log({
       action: 'compliance.obligation_updated',
@@ -573,6 +612,9 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
         }
       })
     }
+
+    // Invalidate system detail cache (document count changed)
+    await cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${system.id}`)
 
     await auditService.log({
       action: 'compliance.document_generated',
@@ -714,6 +756,12 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
       }
     })
 
+    // Invalidate caches — new incident affects stats and system detail
+    await Promise.all([
+      cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${parsed.data.aiSystemId}`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+    ])
+
     await auditService.log({
       action: 'compliance.incident_created',
       userId: request.user?.id,
@@ -828,6 +876,12 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
       where: { id },
       data: parsed.data
     })
+
+    // Invalidate caches
+    await Promise.all([
+      cacheDelete(`${CACHE_KEYS.COMPLIANCE_SYSTEM}${existing.aiSystemId}`),
+      cacheDeletePattern(`${CACHE_KEYS.COMPLIANCE_STATS}*`),
+    ])
 
     await auditService.log({
       action: 'compliance.incident_updated',
@@ -985,76 +1039,80 @@ export async function complianceRoutes(fastify: FastifyInstance): Promise<void> 
     const org = request.organization!
     const query = StatsQuerySchema.parse(request.query)
 
-    const baseWhere: Prisma.AISystemWhereInput = {
-      project: {
-        organizationId: org.id
+    const cacheKey = `${CACHE_KEYS.COMPLIANCE_STATS}${org.id}:${query.projectId || 'all'}`
+
+    return cached(cacheKey, CACHE_TTL.COMPLIANCE_STATS, async () => {
+      const baseWhere: Prisma.AISystemWhereInput = {
+        project: {
+          organizationId: org.id
+        }
       }
-    }
 
-    if (query.projectId) {
-      baseWhere.projectId = query.projectId
-    }
+      if (query.projectId) {
+        baseWhere.projectId = query.projectId
+      }
 
-    const [
-      total,
-      byRiskLevel,
-      byComplianceStatus,
-      recentIncidents,
-      pendingObligations
-    ] = await Promise.all([
-      // Total systems
-      prisma.aISystem.count({ where: baseWhere }),
+      const [
+        total,
+        byRiskLevel,
+        byComplianceStatus,
+        recentIncidents,
+        pendingObligations
+      ] = await Promise.all([
+        // Total systems
+        prisma.aISystem.count({ where: baseWhere }),
 
-      // By risk level
-      prisma.aISystem.groupBy({
-        by: ['riskLevel'],
-        where: baseWhere,
-        _count: true
-      }),
+        // By risk level
+        prisma.aISystem.groupBy({
+          by: ['riskLevel'],
+          where: baseWhere,
+          _count: true
+        }),
 
-      // By compliance status
-      prisma.aISystem.groupBy({
-        by: ['complianceStatus'],
-        where: baseWhere,
-        _count: true
-      }),
+        // By compliance status
+        prisma.aISystem.groupBy({
+          by: ['complianceStatus'],
+          where: baseWhere,
+          _count: true
+        }),
 
-      // Recent incidents
-      prisma.incidentReport.findMany({
-        where: {
-          aiSystem: baseWhere
-        },
-        orderBy: { occurredAt: 'desc' },
-        take: 5,
-        include: {
-          aiSystem: {
-            select: { id: true, name: true }
+        // Recent incidents
+        prisma.incidentReport.findMany({
+          where: {
+            aiSystem: baseWhere
+          },
+          orderBy: { occurredAt: 'desc' },
+          take: 5,
+          include: {
+            aiSystem: {
+              select: { id: true, name: true }
+            }
           }
-        }
-      }),
+        }),
 
-      // Pending obligations count
-      prisma.complianceObligation.count({
-        where: {
-          status: 'PENDING',
-          aiSystem: baseWhere
-        }
-      })
-    ])
+        // Pending obligations count
+        prisma.complianceObligation.count({
+          where: {
+            status: 'PENDING',
+            aiSystem: baseWhere
+          }
+        })
+      ])
 
-    return {
-      totalSystems: total,
-      byRiskLevel: byRiskLevel.reduce((acc, item) => {
-        acc[item.riskLevel] = item._count
-        return acc
-      }, {} as Record<string, number>),
-      byComplianceStatus: byComplianceStatus.reduce((acc, item) => {
-        acc[item.complianceStatus] = item._count
-        return acc
-      }, {} as Record<string, number>),
-      pendingObligations,
-      recentIncidents
-    }
+      return {
+        totalSystems: total,
+        byRiskLevel: byRiskLevel.reduce((acc, item) => {
+          acc[item.riskLevel] = item._count
+          return acc
+        }, {} as Record<string, number>),
+        byComplianceStatus: byComplianceStatus.reduce((acc, item) => {
+          acc[item.complianceStatus] = item._count
+          return acc
+        }, {} as Record<string, number>),
+        pendingObligations,
+        recentIncidents
+      }
+    })
   })
 }
 

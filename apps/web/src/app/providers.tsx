@@ -20,6 +20,7 @@ export function Providers({ children }: { children: ReactNode }): React.JSX.Elem
         defaultOptions: {
           queries: {
             staleTime: 60 * 1000, // 1 minute
+            gcTime: 5 * 60 * 1000, // 5 minutes — keep unused cache longer
             refetchOnWindowFocus: false,
           },
         },
