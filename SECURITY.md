@@ -6,9 +6,10 @@ If you discover a security vulnerability in AgentGov, please report it responsib
 
 **Do NOT open a public GitHub issue for security vulnerabilities.**
 
-Instead, please email: **security@agentgov.co**
+Instead, please email: **omadillo@agentgov.co**
 
 Include:
+
 - Description of the vulnerability
 - Steps to reproduce
 - Potential impact
@@ -19,7 +20,7 @@ We will acknowledge receipt within 48 hours and aim to provide a fix within 7 da
 ## Supported Versions
 
 | Version | Supported |
-|---------|-----------|
+| ------- | --------- |
 | latest  | Yes       |
 
 ## Security Best Practices
