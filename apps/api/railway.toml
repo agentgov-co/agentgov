@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "../../Dockerfile"
 
 [deploy]
-startCommand = "pnpm --filter @agentgov/api start:migrate"
+startCommand = "pnpm --filter @agentgov/api start"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
