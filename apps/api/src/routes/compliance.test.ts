@@ -228,6 +228,31 @@ vi.mock('../lib/prisma.js', () => ({
   }
 }))
 
+// Mock cache functions
+const mockCached = vi.fn(async <T>(_key: string, _ttl: number, fn: () => Promise<T>) => fn())
+const mockCacheDeletePattern = vi.fn().mockResolvedValue(undefined)
+const mockCacheDelete = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('../lib/redis.js', () => ({
+  cached: <T>(...args: [string, number, () => Promise<T>]) => mockCached(...args),
+  queryHash: (params: Record<string, unknown>) => {
+    // Deterministic hash for tests
+    return Object.keys(params).sort().filter(k => params[k] != null).map(k => `${k}=${params[k]}`).join('&')
+  },
+  cacheDeletePattern: (...args: unknown[]) => mockCacheDeletePattern(...args),
+  cacheDelete: (...args: unknown[]) => mockCacheDelete(...args),
+  CACHE_TTL: {
+    COMPLIANCE_STATS: 60,
+    COMPLIANCE_SYSTEMS: 60,
+    COMPLIANCE_SYSTEM: 120,
+  },
+  CACHE_KEYS: {
+    COMPLIANCE_STATS: 'compliance:stats:',
+    COMPLIANCE_SYSTEMS: 'compliance:systems:',
+    COMPLIANCE_SYSTEM: 'compliance:system:',
+  },
+}))
+
 // Mock audit service
 const mockAuditLog = vi.fn().mockResolvedValue(undefined)
 vi.mock('../services/audit.js', () => ({
@@ -276,6 +301,11 @@ describe('Compliance API', () => {
     mockIncidents.clear()
     mockOversightConfigs.clear()
     mockAuditLog.mockClear()
+    mockCached.mockClear()
+    mockCacheDeletePattern.mockClear()
+    mockCacheDelete.mockClear()
+    // Reset cached to default pass-through behavior
+    mockCached.mockImplementation(async <T>(_key: string, _ttl: number, fn: () => Promise<T>) => fn())
     testProject = createMockProject()
   })
 
@@ -1170,6 +1200,215 @@ describe('Compliance API', () => {
           })
         })
       )
+    })
+  })
+
+  describe('Cache Behavior', () => {
+    it('should use cached() for GET /stats', async () => {
+      await app.inject({
+        method: 'GET',
+        url: '/v1/compliance/stats',
+        headers: AUTH_HEADER
+      })
+
+      expect(mockCached).toHaveBeenCalledWith(
+        expect.stringContaining('compliance:stats:'),
+        60,
+        expect.any(Function)
+      )
+    })
+
+    it('should use cached() for GET /systems', async () => {
+      await app.inject({
+        method: 'GET',
+        url: '/v1/compliance/systems',
+        headers: AUTH_HEADER
+      })
+
+      expect(mockCached).toHaveBeenCalledWith(
+        expect.stringContaining('compliance:systems:'),
+        60,
+        expect.any(Function)
+      )
+    })
+
+    it('should use cached() for GET /systems/:id', async () => {
+      // Create a system first
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/assess',
+        headers: AUTH_HEADER,
+        payload: {
+          name: 'Cache Test System',
+          projectId: testProject.id,
+          useCaseDescription: 'Test',
+          annexIIICategory: null,
+          deployedInEU: true,
+          affectsEUCitizens: true,
+          intendedPurpose: 'Test',
+          processesPersonalData: false
+        }
+      })
+      const created = JSON.parse(createResponse.body)
+      mockCached.mockClear()
+
+      await app.inject({
+        method: 'GET',
+        url: `/v1/compliance/systems/${created.system.id}`,
+        headers: AUTH_HEADER
+      })
+
+      expect(mockCached).toHaveBeenCalledWith(
+        expect.stringContaining('compliance:system:'),
+        120,
+        expect.any(Function)
+      )
+    })
+
+    it('should invalidate caches on POST /assess', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/assess',
+        headers: AUTH_HEADER,
+        payload: {
+          name: 'Invalidation Test',
+          projectId: testProject.id,
+          useCaseDescription: 'Test',
+          annexIIICategory: null,
+          deployedInEU: true,
+          affectsEUCitizens: true,
+          intendedPurpose: 'Test',
+          processesPersonalData: false
+        }
+      })
+
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:stats:*')
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:systems:*')
+    })
+
+    it('should invalidate caches on DELETE /systems/:id', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/assess',
+        headers: AUTH_HEADER,
+        payload: {
+          name: 'Delete Cache Test',
+          projectId: testProject.id,
+          useCaseDescription: 'Test',
+          annexIIICategory: null,
+          deployedInEU: true,
+          affectsEUCitizens: true,
+          intendedPurpose: 'Test',
+          processesPersonalData: false
+        }
+      })
+      const created = JSON.parse(createResponse.body)
+      mockCacheDeletePattern.mockClear()
+      mockCacheDelete.mockClear()
+
+      await app.inject({
+        method: 'DELETE',
+        url: `/v1/compliance/systems/${created.system.id}`,
+        headers: AUTH_HEADER
+      })
+
+      expect(mockCacheDelete).toHaveBeenCalledWith(
+        expect.stringContaining(`compliance:system:${created.system.id}`)
+      )
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:systems:*')
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:stats:*')
+    })
+
+    it('should invalidate caches on PUT /systems/:id', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/assess',
+        headers: AUTH_HEADER,
+        payload: {
+          name: 'Update Cache Test',
+          projectId: testProject.id,
+          useCaseDescription: 'Test',
+          annexIIICategory: null,
+          deployedInEU: true,
+          affectsEUCitizens: true,
+          intendedPurpose: 'Test',
+          processesPersonalData: false
+        }
+      })
+      const created = JSON.parse(createResponse.body)
+      mockCacheDeletePattern.mockClear()
+      mockCacheDelete.mockClear()
+
+      await app.inject({
+        method: 'PUT',
+        url: `/v1/compliance/systems/${created.system.id}`,
+        headers: AUTH_HEADER,
+        payload: { name: 'Updated' }
+      })
+
+      expect(mockCacheDelete).toHaveBeenCalledWith(
+        expect.stringContaining(`compliance:system:${created.system.id}`)
+      )
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:systems:*')
+    })
+
+    it('should invalidate caches on POST /incidents', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/assess',
+        headers: AUTH_HEADER,
+        payload: {
+          name: 'Incident Cache Test',
+          projectId: testProject.id,
+          useCaseDescription: 'Test',
+          annexIIICategory: null,
+          deployedInEU: true,
+          affectsEUCitizens: true,
+          intendedPurpose: 'Test',
+          processesPersonalData: false
+        }
+      })
+      const created = JSON.parse(createResponse.body)
+      mockCacheDeletePattern.mockClear()
+      mockCacheDelete.mockClear()
+
+      await app.inject({
+        method: 'POST',
+        url: '/v1/compliance/incidents',
+        headers: AUTH_HEADER,
+        payload: {
+          aiSystemId: created.system.id,
+          title: 'Cache Test Incident',
+          description: 'Testing cache invalidation',
+          severity: 'LOW',
+          type: 'OTHER',
+          occurredAt: new Date().toISOString(),
+          detectedAt: new Date().toISOString()
+        }
+      })
+
+      expect(mockCacheDelete).toHaveBeenCalledWith(
+        expect.stringContaining(`compliance:system:${created.system.id}`)
+      )
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith('compliance:stats:*')
+    })
+
+    it('should return cached data when cached() resolves from cache', async () => {
+      const cachedData = {
+        data: [{ id: 'cached_sys', name: 'Cached System' }],
+        pagination: { total: 1, limit: 20, offset: 0, hasMore: false }
+      }
+      mockCached.mockResolvedValueOnce(cachedData)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/compliance/systems',
+        headers: AUTH_HEADER
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.data[0].id).toBe('cached_sys')
     })
   })
 

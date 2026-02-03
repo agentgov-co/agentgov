@@ -7,6 +7,7 @@ import { checkTraceLimit } from '../middleware/usage.js'
 import { checkApiKeyRateLimit } from '../middleware/rate-limit.js'
 import { wsManager } from '../lib/websocket-manager.js'
 import { usageService } from '../services/usage.service.js'
+import { cached, queryHash, cacheDeletePattern, CACHE_TTL, CACHE_KEYS } from '../lib/redis.js'
 import {
   CreateTraceSchema,
   UpdateTraceSchema,
@@ -36,30 +37,39 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
         ...(search && { name: { contains: search, mode: 'insensitive' as const } })
       }
 
-      const [traces, total] = await Promise.all([
-        prisma.trace.findMany({
-          where,
-          include: {
-            _count: {
-              select: { spans: true }
-            }
-          },
-          orderBy: { startedAt: 'desc' },
-          take: limit,
-          skip: offset
-        }),
-        prisma.trace.count({ where }),
-      ])
+      const cacheKey = `${CACHE_KEYS.TRACES_LIST}${project.id}:${queryHash({ status, search, limit, offset })}`
 
-      return {
-        data: traces,
-        pagination: {
-          total,
-          limit,
-          offset,
-          hasMore: offset + traces.length < total
+      return cached(cacheKey, CACHE_TTL.TRACES_LIST, async () => {
+        const [traces, total] = await Promise.all([
+          prisma.trace.findMany({
+            where,
+            omit: {
+              input: true,
+              output: true,
+              metadata: true,
+            },
+            include: {
+              _count: {
+                select: { spans: true }
+              }
+            },
+            orderBy: { startedAt: 'desc' },
+            take: limit,
+            skip: offset
+          }),
+          prisma.trace.count({ where }),
+        ])
+
+        return {
+          data: traces,
+          pagination: {
+            total,
+            limit,
+            offset,
+            hasMore: offset + traces.length < total
+          }
         }
-      }
+      })
     })
 
     // GET /v1/traces/:id - Get single trace with spans
@@ -172,6 +182,11 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
           }
         })
 
+        // Invalidate trace list cache for this project (non-blocking)
+        cacheDeletePattern(`${CACHE_KEYS.TRACES_LIST}${project.id}:*`).catch((err) => {
+          request.log.warn({ err, projectId: project.id }, 'Failed to invalidate trace list cache')
+        })
+
         wsManager.notifyTraceCreated({
           id: trace.id,
           projectId: trace.projectId,
@@ -251,6 +266,11 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
           ...(shouldSetEndTime ? { endedAt: null } : {})
         },
         data: updateData
+      })
+
+      // Invalidate trace list cache for this project (non-blocking)
+      cacheDeletePattern(`${CACHE_KEYS.TRACES_LIST}${project.id}:*`).catch((err) => {
+        request.log.warn({ err, projectId: project.id }, 'Failed to invalidate trace list cache')
       })
 
       wsManager.notifyTraceUpdated({

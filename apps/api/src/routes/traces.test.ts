@@ -66,6 +66,20 @@ vi.mock('../lib/prisma.js', () => ({
   }
 }))
 
+// Mock cache functions
+const mockCached = vi.fn(async <T>(_key: string, _ttl: number, fn: () => Promise<T>) => fn())
+const mockCacheDeletePattern = vi.fn().mockResolvedValue(undefined)
+
+vi.mock('../lib/redis.js', () => ({
+  cached: <T>(...args: [string, number, () => Promise<T>]) => mockCached(...args),
+  queryHash: (params: Record<string, unknown>) => {
+    return Object.keys(params).sort().filter(k => params[k] != null).map(k => `${k}=${params[k]}`).join('&')
+  },
+  cacheDeletePattern: (...args: unknown[]) => mockCacheDeletePattern(...args),
+  CACHE_TTL: { TRACES_LIST: 30 },
+  CACHE_KEYS: { TRACES_LIST: 'traces:list:' },
+}))
+
 import { vi } from 'vitest'
 
 describe('Traces API', () => {
@@ -83,6 +97,9 @@ describe('Traces API', () => {
 
   beforeEach(() => {
     mockTraces.clear()
+    mockCached.mockClear()
+    mockCacheDeletePattern.mockClear()
+    mockCached.mockImplementation(async <T>(_key: string, _ttl: number, fn: () => Promise<T>) => fn())
   })
 
   describe('POST /v1/traces', () => {
@@ -232,6 +249,75 @@ describe('Traces API', () => {
       })
 
       expect(response.statusCode).toBe(204)
+    })
+  })
+
+  describe('Cache Behavior', () => {
+    it('should use cached() for GET /traces list', async () => {
+      await app.inject({
+        method: 'GET',
+        url: '/v1/traces',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` }
+      })
+
+      expect(mockCached).toHaveBeenCalledWith(
+        expect.stringContaining('traces:list:'),
+        30,
+        expect.any(Function)
+      )
+    })
+
+    it('should invalidate trace list cache on POST /traces', async () => {
+      await app.inject({
+        method: 'POST',
+        url: '/v1/traces',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: { name: 'Cache Invalidation Test' }
+      })
+
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith(
+        expect.stringContaining(`traces:list:${TEST_PROJECT_ID}:`)
+      )
+    })
+
+    it('should invalidate trace list cache on PATCH /traces/:id', async () => {
+      const createResponse = await app.inject({
+        method: 'POST',
+        url: '/v1/traces',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: { name: 'Cache PATCH Test' }
+      })
+      const created = JSON.parse(createResponse.body)
+      mockCacheDeletePattern.mockClear()
+
+      await app.inject({
+        method: 'PATCH',
+        url: `/v1/traces/${created.id}`,
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: { status: 'COMPLETED' }
+      })
+
+      expect(mockCacheDeletePattern).toHaveBeenCalledWith(
+        expect.stringContaining(`traces:list:${TEST_PROJECT_ID}:`)
+      )
+    })
+
+    it('should return cached data when cached() resolves from cache', async () => {
+      const cachedData = {
+        data: [{ id: 'cached_trace', name: 'Cached Trace' }],
+        pagination: { total: 1, limit: 50, offset: 0, hasMore: false }
+      }
+      mockCached.mockResolvedValueOnce(cachedData)
+
+      const response = await app.inject({
+        method: 'GET',
+        url: '/v1/traces',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` }
+      })
+
+      expect(response.statusCode).toBe(200)
+      const body = JSON.parse(response.body)
+      expect(body.data[0].id).toBe('cached_trace')
     })
   })
 })
