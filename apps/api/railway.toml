@@ -1,9 +1,9 @@
 [build]
-builder = "dockerfile"
-dockerfilePath = "../../Dockerfile"
+builder = "nixpacks"
+buildCommand = "cd ../.. && pnpm install --frozen-lockfile && pnpm build:api && cd apps/api && npx prisma db push --skip-generate"
 
 [deploy]
-preDeployCommand = "cd /app/apps/api && npx prisma migrate deploy || npx prisma db push"
+startCommand = "pnpm --filter @agentgov/api start:migrate"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
