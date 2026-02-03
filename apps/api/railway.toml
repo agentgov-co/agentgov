@@ -1,9 +1,9 @@
 [build]
 builder = "nixpacks"
-buildCommand = "pnpm install --frozen-lockfile && pnpm build:api && cd apps/api && npx prisma db push"
+buildCommand = "pnpm install --frozen-lockfile && pnpm build:api"
 
 [deploy]
-startCommand = "pnpm --filter @agentgov/api start:migrate"
+startCommand = "pnpm --filter @agentgov/api start"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"
