@@ -5,6 +5,8 @@ import { logger } from '../lib/logger.js'
 export type AuditAction =
   // Auth events
   | 'user.login'
+  | 'user.login_failed'
+  | 'user.account_locked'
   | 'user.logout'
   | 'user.register'
   | 'user.password_reset'

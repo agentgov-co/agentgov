@@ -5,40 +5,37 @@ const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? 'https://agentgov.co'
 export default function robots(): MetadataRoute.Robots {
   return {
     rules: [
-      // Основное правило для всех ботов
       {
         userAgent: '*',
         allow: '/',
         disallow: ['/dashboard/', '/api/', '/sentry-example-page'],
       },
       // === TRAINING БОТЫ — БЛОКИРОВАТЬ ===
-      // Эти боты собирают данные для обучения AI моделей
       {
-        userAgent: 'CCBot',           // Common Crawl datasets
+        userAgent: 'CCBot',
         disallow: '/',
       },
       {
-        userAgent: 'Google-Extended', // Gemini training (не Google Search!)
+        userAgent: 'Google-Extended',
         disallow: '/',
       },
       {
-        userAgent: 'Bytespider',      // ByteDance/TikTok AI training
+        userAgent: 'Bytespider',
         disallow: '/',
       },
       {
-        userAgent: 'Diffbot',         // Web scraping for AI datasets
+        userAgent: 'Diffbot',
         disallow: '/',
       },
       {
-        userAgent: 'FacebookBot',     // Meta AI training
+        userAgent: 'FacebookBot',
         disallow: '/',
       },
       {
-        userAgent: 'omgili',          // Data mining
+        userAgent: 'omgili',
         disallow: '/',
       },
       // === SEARCH/BROWSE БОТЫ — ЯВНО РАЗРЕШИТЬ ===
-      // Позволяет AI поисковикам цитировать AgentGov в ответах
       {
         userAgent: 'GPTBot',
         allow: '/',

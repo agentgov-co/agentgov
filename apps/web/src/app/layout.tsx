@@ -1,58 +1,65 @@
-import type { Metadata } from 'next'
-import { headers } from 'next/headers'
-import { Inter } from 'next/font/google'
-import { Analytics } from '@vercel/analytics/react'
-import { SpeedInsights } from '@vercel/speed-insights/next'
-import './globals.css'
-import { Providers } from './providers'
-import { HydrationFix } from '@/components/hydration-fix'
-import { OrganizationJsonLd, SoftwareApplicationJsonLd, FAQPageJsonLd, WebSiteJsonLd } from '@/components/structured-data'
+import type { Metadata } from "next";
+import { headers } from "next/headers";
+import { Inter } from "next/font/google";
+import { Analytics } from "@vercel/analytics/react";
+import { SpeedInsights } from "@vercel/speed-insights/next";
+import "./globals.css";
+import { Providers } from "./providers";
+import { HydrationFix } from "@/components/hydration-fix";
+import {
+  OrganizationJsonLd,
+  SoftwareApplicationJsonLd,
+  FAQPageJsonLd,
+  WebSiteJsonLd,
+} from "@/components/structured-data";
 
-const inter = Inter({ subsets: ['latin'] })
+const inter = Inter({ subsets: ["latin"] });
+
+const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentgov.co";
 
 export const metadata: Metadata = {
-  metadataBase: new URL('https://agentgov.co'),
+  metadataBase: new URL(SITE_URL),
   title: {
-    default: 'AgentGov — AI Agent Governance Platform',
-    template: '%s | AgentGov',
+    default: "AgentGov — AI Agent Governance Platform",
+    template: "%s | AgentGov",
   },
   description:
-    'Monitor, secure, and govern your AI agents with real-time observability and EU AI Act compliance. Free beta with 100K traces/month.',
+    "Monitor, secure, and govern your AI agents with real-time observability and EU AI Act compliance. Free beta with 100K traces/month.",
   keywords: [
-    'AI governance',
-    'AI observability',
-    'EU AI Act',
-    'EU AI Act compliance',
-    'LLM monitoring',
-    'AI compliance',
-    'agent tracing',
-    'AI risk management',
-    'AI agent monitoring',
-    'Langfuse alternative',
+    "AI governance",
+    "AI observability",
+    "EU AI Act",
+    "EU AI Act compliance",
+    "LLM monitoring",
+    "AI compliance",
+    "agent tracing",
+    "AI risk management",
+    "AI agent monitoring",
+    "Langfuse alternative",
   ],
-  authors: [{ name: 'AgentGov' }],
-  creator: 'AgentGov',
-  publisher: 'AgentGov',
+  authors: [{ name: "AgentGov" }],
+  creator: "AgentGov",
+  publisher: "AgentGov",
   formatDetection: {
     email: false,
     address: false,
     telephone: false,
   },
   openGraph: {
-    type: 'website',
-    locale: 'en_US',
-    url: 'https://agentgov.co',
-    siteName: 'AgentGov',
-    title: 'AgentGov — AI Agent Governance Platform',
+    type: "website",
+    locale: "en_US",
+    url: "https://agentgov.co",
+    siteName: "AgentGov",
+    title: "AgentGov — AI Agent Governance Platform",
     description:
-      'Monitor, secure, and govern your AI agents with real-time observability and EU AI Act compliance.',
+      "Monitor, secure, and govern your AI agents with real-time observability and EU AI Act compliance.",
   },
   twitter: {
-    card: 'summary_large_image',
-    title: 'AgentGov — AI Agent Governance Platform',
+    card: "summary_large_image",
+    title: "AgentGov — AI Agent Governance Platform",
     description:
-      'Monitor, secure, and govern your AI agents with EU AI Act compliance.',
-    creator: '@agentgov',
+      "Monitor, secure, and govern your AI agents with EU AI Act compliance.",
+    creator: "@agentgov",
   },
   robots: {
     index: true,
@@ -60,25 +67,25 @@ export const metadata: Metadata = {
     googleBot: {
       index: true,
       follow: true,
-      'max-video-preview': -1,
-      'max-image-preview': 'large',
-      'max-snippet': -1,
+      "max-video-preview": -1,
+      "max-image-preview": "large",
+      "max-snippet": -1,
     },
   },
   verification: {
     google: process.env.NEXT_PUBLIC_GOOGLE_SITE_VERIFICATION,
   },
   alternates: {
-    canonical: 'https://agentgov.co',
+    canonical: "https://agentgov.co",
   },
-}
+};
 
 export default async function RootLayout({
   children,
 }: {
-  children: React.ReactNode
+  children: React.ReactNode;
 }): Promise<React.JSX.Element> {
-  const nonce = (await headers()).get('x-nonce') ?? undefined
+  const nonce = (await headers()).get("x-nonce") ?? undefined;
 
   return (
     <html lang="en" suppressHydrationWarning>
@@ -95,5 +102,5 @@ export default async function RootLayout({
         <SpeedInsights />
       </body>
     </html>
-  )
+  );
 }
