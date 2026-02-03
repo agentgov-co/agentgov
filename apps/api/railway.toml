@@ -5,6 +5,6 @@ buildCommand = "pnpm install --frozen-lockfile && pnpm build:api"
 [deploy]
 startCommand = "pnpm --filter @agentgov/api start"
 healthcheckPath = "/health"
-healthcheckTimeout = 30
+healthcheckTimeout = 120
 restartPolicyType = "ON_FAILURE"
 restartPolicyMaxRetries = 3
