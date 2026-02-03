@@ -116,11 +116,19 @@ const pricingRows: {
   label: string;
   values: string[];
 }[] = [
-  { category: "Observability", label: "Traces", values: ["10K/mo", "100K/mo", "500K/mo", "Unlimited"] },
+  {
+    category: "Observability",
+    label: "Traces",
+    values: ["10K/mo", "100K/mo", "500K/mo", "Unlimited"],
+  },
   { label: "Projects", values: ["1", "5", "Unlimited", "Unlimited"] },
   { label: "Retention", values: ["7 days", "30 days", "90 days", "Custom"] },
   { label: "Team", values: ["1", "3", "10", "Unlimited"] },
-  { category: "EU AI Act", label: "AI Systems", values: ["1", "3", "15", "Unlimited"] },
+  {
+    category: "EU AI Act",
+    label: "AI Systems",
+    values: ["1", "3", "15", "Unlimited"],
+  },
   { label: "Risk Classification", values: ["✓", "✓", "✓", "✓"] },
   { label: "Doc Generation", values: ["—", "Basic", "Full", "Custom"] },
   { label: "FRIA Reports", values: ["—", "—", "✓", "✓"] },
@@ -790,7 +798,10 @@ export default function Home(): React.JSX.Element {
       </div>
 
       {/* Pricing */}
-      <section id="pricing" className="border-b border-black/10 overflow-x-auto">
+      <section
+        id="pricing"
+        className="border-b border-black/10 overflow-x-auto"
+      >
         <BorderedContainer>
           <div className="px-4 sm:px-6 py-10 sm:py-16 border-b border-black/10">
             <SectionLabel number="06" label="Pricing" />
@@ -804,11 +815,11 @@ export default function Home(): React.JSX.Element {
 
           {/* Pricing comparison table */}
           <div className="overflow-x-auto">
-            <table className="w-full border-collapse min-w-[900px]">
+            <table className="w-full border-collapse min-w-225">
               {/* Plan headers */}
               <thead>
                 <tr className="border-b border-black/10">
-                  <th className="p-6 text-left w-[200px]" />
+                  <th className="p-6 text-left w-50" />
                   {plans.map((plan) => (
                     <th
                       key={plan.name}
@@ -869,9 +880,7 @@ export default function Home(): React.JSX.Element {
                         </td>
                       </tr>
                     )}
-                    <tr
-                      className="border-b border-black/5"
-                    >
+                    <tr className="border-b border-black/5">
                       <td className="px-6 py-4 text-sm text-black/60">
                         {row.label}
                       </td>
@@ -980,7 +989,7 @@ export default function Home(): React.JSX.Element {
                 Pricing
               </a>
               <a
-                href="https://github.com/agentgov/agentgov"
+                href="https://github.com/agentgov-co/agentgov"
                 target="_blank"
                 rel="noopener noreferrer"
                 className="hover:text-black transition-colors"

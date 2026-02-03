@@ -28,7 +28,7 @@ Monitor, secure, and control your AI agents with enterprise-grade governance. Bu
 
 ```bash
 # Clone and install
-git clone https://github.com/agentgov/agentgov.git
+git clone https://github.com/agentgov-co/agentgov.git
 cd agentgov
 pnpm install
 

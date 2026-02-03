@@ -88,7 +88,7 @@ export function GeneralSettings(): React.JSX.Element {
           <p>AgentGov v0.1.0</p>
           <p>
             <a
-              href="https://github.com/agentgov/agentgov"
+              href="https://github.com/agentgov-co/agentgov"
               target="_blank"
               rel="noopener noreferrer"
               className="text-primary hover:underline"
