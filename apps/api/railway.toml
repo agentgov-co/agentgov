@@ -3,7 +3,7 @@ builder = "dockerfile"
 dockerfilePath = "../../Dockerfile"
 
 [deploy]
-startCommand = "pnpm --filter @agentgov/api start"
+preDeployCommand = "cd /app/apps/api && npx prisma migrate deploy || npx prisma db push"
 healthcheckPath = "/health"
 healthcheckTimeout = 30
 restartPolicyType = "ON_FAILURE"

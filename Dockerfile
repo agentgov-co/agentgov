@@ -19,4 +19,5 @@ RUN pnpm build:api
 
 EXPOSE 3001
 
-CMD ["pnpm", "start:api"]
+WORKDIR /app/apps/api
+CMD ["node", "dist/index.js"]
