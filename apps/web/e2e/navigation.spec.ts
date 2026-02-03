@@ -26,12 +26,15 @@ test.describe('Navigation', () => {
     test('should navigate to register from landing page', async ({ page }) => {
       await page.goto('/')
 
+      // Wait for Next.js hydration before clicking client-side links
+      await page.waitForLoadState('networkidle')
+
       // Look for sign up / get started link (use first() as there may be multiple)
       const signUpLink = page.getByRole('link', { name: /sign up|get started|register/i }).first()
       if (await signUpLink.isVisible()) {
         await signUpLink.click()
         // "Get Started" links to /dashboard which redirects to /login without auth
-        await expect(page).toHaveURL(/\/(register|signup|dashboard|login)/)
+        await expect(page).toHaveURL(/\/(register|signup|dashboard|login)/, { timeout: 10000 })
       }
     })
   })
