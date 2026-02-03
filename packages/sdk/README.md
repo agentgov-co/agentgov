@@ -1,75 +1,23 @@
 # @agentgov/sdk
 
-Official SDK for AgentGov — AI Agent Governance Platform.
+[![npm version](https://img.shields.io/npm/v/@agentgov/sdk)](https://www.npmjs.com/package/@agentgov/sdk)
+[![license](https://img.shields.io/npm/l/@agentgov/sdk)](https://github.com/agentgov-co/agentgov/blob/main/LICENSE)
 
-Automatically trace your AI agent operations with minimal code changes. Supports OpenAI, Vercel AI SDK, streaming, tool calls, and more.
+Observability SDK for AI agents. Trace LLM calls, tool usage, and agent steps with minimal code changes.
 
-## Features
-
-- **OpenAI Integration** — Automatic tracing with `wrapOpenAI()`
-- **Vercel AI SDK** — Support for `generateText`, `streamText`, `generateObject`, `embed`
-- **Streaming Support** — Full tracking of streaming responses
-- **Tool Calls** — Automatic span creation for tool/function calls
-- **Cost Estimation** — Built-in pricing for common models
-- **Batching** — High-throughput mode with `queueTrace()` / `queueSpan()`
-- **Context Management** — `withTrace()` / `withSpan()` helpers
+Supports OpenAI, Vercel AI SDK, streaming, tool calls, and cost tracking.
 
 ## Installation
 
 ```bash
 npm install @agentgov/sdk
-# or
-pnpm add @agentgov/sdk
 ```
 
-## Authentication
-
-The SDK uses API keys for authentication. Get your API key from the AgentGov dashboard:
-
-1. Go to **Settings → API Keys**
-2. Click **Create API Key**
-3. Copy the key (it's only shown once!)
-
-API keys have the format `ag_live_xxxxxxxxxxxx` (production) or `ag_test_xxxxxxxxxxxx` (testing).
-
-```typescript
-import { AgentGov } from "@agentgov/sdk";
-
-const ag = new AgentGov({
-  apiKey: process.env.AGENTGOV_API_KEY!, // ag_live_xxx or ag_test_xxx
-  projectId: process.env.AGENTGOV_PROJECT_ID!,
-});
-```
-
-### API Key Scopes
-
-API keys can be scoped to:
-- **All projects** — Access all projects in your organization
-- **Specific project** — Access only the specified project
-
-### Error Handling for Auth
-
-```typescript
-import { AgentGov, AgentGovAPIError } from "@agentgov/sdk";
-
-try {
-  const trace = await ag.trace({ name: "My Trace" });
-} catch (error) {
-  if (error instanceof AgentGovAPIError) {
-    if (error.statusCode === 401) {
-      console.error("Invalid API key");
-    } else if (error.statusCode === 403) {
-      console.error("Access denied - check API key permissions");
-    } else if (error.statusCode === 429) {
-      console.error("Rate limit exceeded");
-    }
-  }
-}
-```
+> Requires Node.js >= 18
 
 ## Quick Start
 
-### OpenAI Integration
+### OpenAI
 
 ```typescript
 import { AgentGov } from "@agentgov/sdk";
@@ -80,28 +28,16 @@ const ag = new AgentGov({
   projectId: process.env.AGENTGOV_PROJECT_ID!,
 });
 
-// Wrap your OpenAI client
 const openai = ag.wrapOpenAI(new OpenAI());
 
-// All calls are automatically traced - including streaming!
+// All calls are automatically traced — including streaming and tool calls
 const response = await openai.chat.completions.create({
   model: "gpt-4o",
   messages: [{ role: "user", content: "Hello!" }],
 });
-
-// Streaming also works
-const stream = await openai.chat.completions.create({
-  model: "gpt-4o",
-  messages: [{ role: "user", content: "Write a poem" }],
-  stream: true,
-});
-
-for await (const chunk of stream) {
-  process.stdout.write(chunk.choices[0]?.delta?.content || "");
-}
 ```
 
-### Vercel AI SDK Integration
+### Vercel AI SDK
 
 ```typescript
 import { AgentGov } from "@agentgov/sdk";
@@ -113,202 +49,70 @@ const ag = new AgentGov({
   projectId: process.env.AGENTGOV_PROJECT_ID!,
 });
 
-// Wrap Vercel AI SDK functions
 const tracedGenerateText = ag.wrapGenerateText(generateText);
 const tracedStreamText = ag.wrapStreamText(streamText);
 
-// Use them like normal
 const { text } = await tracedGenerateText({
   model: openai("gpt-4o"),
   prompt: "Hello!",
 });
-
-// Streaming
-const { textStream } = await tracedStreamText({
-  model: openai("gpt-4o"),
-  prompt: "Write a story",
-});
-
-for await (const chunk of textStream) {
-  process.stdout.write(chunk);
-}
 ```
 
 ### Manual Tracing
 
 ```typescript
-import { AgentGov } from "@agentgov/sdk";
-
-const ag = new AgentGov({
-  apiKey: "ag_xxx",
-  projectId: "your-project-id",
-});
-
-// Using withTrace helper (recommended)
 const result = await ag.withTrace({ name: "My Agent Pipeline" }, async () => {
-  // Nested spans
   const docs = await ag.withSpan(
     { name: "Retrieve Documents", type: "RETRIEVAL" },
-    async () => {
-      return ["doc1", "doc2"];
-    }
+    async () => fetchDocs()
   );
 
   const response = await ag.withSpan(
     { name: "Generate Response", type: "LLM_CALL", model: "gpt-4o" },
-    async (span) => {
-      // Update span with metrics
-      await ag.endSpan(span.id, {
-        promptTokens: 150,
-        outputTokens: 50,
-        cost: 0.01,
-      });
-      return { content: "Hello!" };
-    }
+    async () => generateResponse(docs)
   );
 
   return response;
 });
 ```
 
-### High-Throughput Batching
+## Authentication
+
+Get your API key from the AgentGov dashboard (**Settings > API Keys**).
+
+Keys use the format `ag_live_xxx` (production) or `ag_test_xxx` (testing).
 
 ```typescript
 const ag = new AgentGov({
-  apiKey: "ag_xxx",
-  projectId: "xxx",
-  batchSize: 10, // Flush after 10 items
-  flushInterval: 5000, // Or after 5 seconds
+  apiKey: "ag_live_xxxxxxxxxxxx",
+  projectId: "your-project-id",
 });
-
-// Queue items (don't await immediately)
-const tracePromise = ag.queueTrace({ name: "Batch Trace" });
-const spanPromise = ag.queueSpan({
-  traceId: "...",
-  name: "Batch Span",
-  type: "CUSTOM",
-});
-
-// Force flush when needed
-await ag.flush();
-
-// Or shutdown gracefully
-await ag.shutdown();
 ```
 
 ## Configuration
 
 ```typescript
-interface AgentGovConfig {
-  /** API key from AgentGov dashboard (ag_xxx) */
-  apiKey: string;
-
-  /** Project ID */
-  projectId: string;
-
-  /** API base URL (default: https://api.agentgov.co) */
-  baseUrl?: string;
-
-  /** Enable debug logging */
-  debug?: boolean;
-
-  /** Flush interval in ms (default: 5000) */
-  flushInterval?: number;
-
-  /** Max batch size before auto-flush (default: 10) */
-  batchSize?: number;
-
-  /** Max retry attempts for failed API requests (default: 3) */
-  maxRetries?: number;
-
-  /** Base delay in ms for exponential backoff (default: 1000) */
-  retryDelay?: number;
-
-  /** Request timeout in ms (default: 30000) */
-  timeout?: number;
-
-  /** Callback for batch flush errors (optional) */
-  onError?: (error: Error, context: { operation: string; itemCount?: number }) => void;
-}
-```
-
-### Error Callback
-
-Handle batch flush errors with the `onError` callback:
-
-```typescript
 const ag = new AgentGov({
-  apiKey: "ag_xxx",
-  projectId: "xxx",
-  onError: (error, context) => {
-    console.error(`[AgentGov] ${context.operation} failed:`, error.message);
-    // Send to your error tracking service
-    Sentry.captureException(error, { extra: context });
-  },
+  apiKey: string,           // Required. API key from dashboard
+  projectId: string,        // Required. Project ID
+  baseUrl: string,          // Default: "https://api.agentgov.co"
+  debug: boolean,           // Default: false
+  flushInterval: number,    // Default: 5000 (ms)
+  batchSize: number,        // Default: 10
+  maxRetries: number,       // Default: 3
+  retryDelay: number,       // Default: 1000 (ms)
+  timeout: number,          // Default: 30000 (ms)
+  onError: (error, ctx) => void, // Optional error callback
 });
 ```
-
-By default, errors during batch flush are:
-- Logged to console in `debug` mode
-- Silently dropped in production (to not affect your app)
-
-## Error Handling
-
-The SDK includes built-in retry logic with exponential backoff:
-
-```typescript
-import { AgentGov, AgentGovAPIError } from "@agentgov/sdk";
-
-const ag = new AgentGov({
-  apiKey: "ag_xxx",
-  projectId: "xxx",
-  maxRetries: 3, // Retry up to 3 times
-  retryDelay: 1000, // Start with 1s delay
-  timeout: 30000, // 30s request timeout
-});
-
-try {
-  const trace = await ag.trace({ name: "My Trace" });
-} catch (error) {
-  if (error instanceof AgentGovAPIError) {
-    console.log(`Status: ${error.statusCode}`);
-    console.log(`Retryable: ${error.retryable}`);
-  }
-}
-```
-
-**Automatic retries for:**
-
-- `429` - Rate limited (respects `Retry-After` header)
-- `408` - Request timeout
-- `5xx` - Server errors
-
-**No retries for:**
-
-- `400` - Bad request
-- `401` - Unauthorized
-- `403` - Forbidden
-- `404` - Not found
 
 ## Wrapper Options
 
-### OpenAI Options
+Both OpenAI and Vercel AI wrappers accept options:
 
 ```typescript
 const openai = ag.wrapOpenAI(new OpenAI(), {
-  traceNamePrefix: "my-agent", // Custom trace name prefix
-  autoTrace: true, // Auto-create trace for each call
-  captureInput: true, // Include prompts in trace
-  captureOutput: true, // Include responses in trace
-  traceToolCalls: true, // Create spans for tool calls
-});
-```
-
-### Vercel AI Options
-
-```typescript
-const tracedFn = ag.wrapGenerateText(generateText, {
-  traceNamePrefix: "vercel-ai",
+  traceNamePrefix: "my-agent",
   autoTrace: true,
   captureInput: true,
   captureOutput: true,
@@ -316,92 +120,101 @@ const tracedFn = ag.wrapGenerateText(generateText, {
 });
 ```
 
+## Batching
+
+For high-throughput scenarios:
+
+```typescript
+const ag = new AgentGov({
+  apiKey: "ag_xxx",
+  projectId: "xxx",
+  batchSize: 10,
+  flushInterval: 5000,
+});
+
+ag.queueTrace({ name: "Batch Trace" });
+ag.queueSpan({ traceId: "...", name: "Batch Span", type: "CUSTOM" });
+
+await ag.flush();     // Force flush
+await ag.shutdown();  // Flush and cleanup
+```
+
+## Error Handling
+
+Built-in retry with exponential backoff. Retries on `429`, `408`, and `5xx`. No retries on `400`, `401`, `403`, `404`.
+
+```typescript
+import { AgentGov, AgentGovAPIError } from "@agentgov/sdk";
+
+try {
+  const trace = await ag.trace({ name: "My Trace" });
+} catch (error) {
+  if (error instanceof AgentGovAPIError) {
+    console.log(error.statusCode, error.retryable);
+  }
+}
+```
+
 ## Span Types
 
-| Type         | Description                           |
-| ------------ | ------------------------------------- |
-| `LLM_CALL`   | Call to LLM (OpenAI, Anthropic, etc.) |
-| `TOOL_CALL`  | Tool/function execution               |
-| `AGENT_STEP` | High-level agent step                 |
-| `RETRIEVAL`  | RAG retrieval                         |
-| `EMBEDDING`  | Embedding generation                  |
-| `CUSTOM`     | Custom span type                      |
+| Type         | Description               |
+| ------------ | ------------------------- |
+| `LLM_CALL`  | LLM API call              |
+| `TOOL_CALL`  | Tool/function execution   |
+| `AGENT_STEP` | High-level agent step     |
+| `RETRIEVAL`  | RAG document retrieval    |
+| `EMBEDDING`  | Embedding generation      |
+| `CUSTOM`     | Custom span               |
 
 ## Cost Estimation
 
-Built-in pricing for common models:
+Built-in pricing for OpenAI (GPT-5, GPT-4, o-series) and Anthropic (Claude 4, 3.5, 3) models:
 
 ```typescript
 import { estimateCost } from "@agentgov/sdk";
 
-const cost = estimateCost("gpt-4o", 1000, 500);
-// Returns: 0.0075 (USD)
+estimateCost("gpt-4o", 1000, 500); // 0.0075 (USD)
 ```
-
-**Supported models (January 2026):**
-
-- OpenAI GPT-5: gpt-5.2, gpt-5.2-pro, gpt-5
-- OpenAI GPT-4: gpt-4.1, gpt-4.1-mini, gpt-4o, gpt-4o-mini
-- OpenAI o-Series: o4-mini, o3-pro, o3, o3-mini, o1, o1-mini
-- OpenAI Legacy: gpt-4-turbo, gpt-4, gpt-3.5-turbo
-- Anthropic: claude-sonnet-4, claude-3.5-sonnet, claude-3.5-haiku, claude-3-opus, claude-3-sonnet, claude-3-haiku
-- Embeddings: text-embedding-3-small, text-embedding-3-large, text-embedding-ada-002
 
 ## API Reference
 
-### AgentGov Class
-
-| Method                    | Description                              |
-| ------------------------- | ---------------------------------------- |
-| `wrapOpenAI(client)`      | Wrap OpenAI client for auto-tracing      |
-| `wrapGenerateText(fn)`    | Wrap Vercel AI generateText              |
-| `wrapStreamText(fn)`      | Wrap Vercel AI streamText                |
-| `wrapGenerateObject(fn)`  | Wrap Vercel AI generateObject            |
-| `wrapEmbed(fn)`           | Wrap Vercel AI embed                     |
-| `wrapEmbedMany(fn)`       | Wrap Vercel AI embedMany                 |
-| `trace(input)`            | Create a new trace                       |
-| `endTrace(id, update)`    | End a trace                              |
-| `span(input)`             | Create a span                            |
-| `endSpan(id, update)`     | End a span                               |
-| `withTrace(input, fn)`    | Execute function within trace context    |
-| `withSpan(input, fn)`     | Execute function within span context     |
-| `queueTrace(input)`       | Queue trace creation (batched)           |
-| `queueSpan(input)`        | Queue span creation (batched)            |
-| `flush()`                 | Force flush queued items                 |
-| `shutdown()`              | Flush and cleanup                        |
-| `getContext()`            | Get current trace context                |
-| `setContext(ctx)`         | Set trace context (distributed tracing)  |
-| `getTrace(id)`            | Fetch trace by ID                        |
-| `getSpan(id)`             | Fetch span by ID                         |
+| Method | Description |
+| --- | --- |
+| `wrapOpenAI(client, opts?)` | Auto-trace OpenAI calls |
+| `wrapGenerateText(fn, opts?)` | Wrap Vercel AI `generateText` |
+| `wrapStreamText(fn, opts?)` | Wrap Vercel AI `streamText` |
+| `wrapGenerateObject(fn, opts?)` | Wrap Vercel AI `generateObject` |
+| `wrapEmbed(fn, opts?)` | Wrap Vercel AI `embed` |
+| `wrapEmbedMany(fn, opts?)` | Wrap Vercel AI `embedMany` |
+| `trace(input?)` | Create a trace |
+| `endTrace(id, update?)` | End a trace |
+| `span(input)` | Create a span |
+| `endSpan(id, update?)` | End a span |
+| `withTrace(input, fn)` | Run function within trace context |
+| `withSpan(input, fn)` | Run function within span context |
+| `queueTrace(input)` | Queue trace (batched) |
+| `queueSpan(input)` | Queue span (batched) |
+| `flush()` | Force flush queued items |
+| `shutdown()` | Flush and cleanup |
+| `getContext()` | Get current trace context |
+| `setContext(ctx)` | Set trace context |
+| `getTrace(id)` | Fetch trace by ID |
+| `getSpan(id)` | Fetch span by ID |
 
 ## TypeScript
-
-Full TypeScript support:
 
 ```typescript
 import type {
   AgentGovConfig,
-  Trace,
-  Span,
-  SpanType,
-  TraceContext,
-  WrapOpenAIOptions,
-  WrapVercelAIOptions,
+  Trace, TraceInput, TraceStatus, TraceContext,
+  Span, SpanInput, SpanUpdate, SpanStatus, SpanType,
+  WrapOpenAIOptions, WrapVercelAIOptions,
 } from "@agentgov/sdk";
 ```
 
 ## Examples
 
-See the [examples](../../examples) directory:
-
-- `openai-example.ts` — Basic OpenAI integration
-- `streaming-example.ts` — Streaming responses
-- `vercel-ai-example.ts` — Vercel AI SDK integration
-- `manual-tracing.ts` — Manual span creation
-
-## Documentation
-
-[docs.agentgov.co](https://docs.agentgov.co)
+See the [examples](https://github.com/agentgov-co/agentgov/tree/main/examples) directory.
 
 ## License
 
