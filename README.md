@@ -64,7 +64,7 @@ agentgov/
 │   │   │   └── lib/         # Utilities
 │   │   └── prisma/          # Database schema
 │   │
-│   └── web/                 # Next.js 14 frontend (port 3000)
+│   └── web/                 # Next.js 16 frontend (port 3000)
 │       └── src/
 │           ├── app/         # App Router pages
 │           ├── components/  # UI components (shadcn/ui)
@@ -169,7 +169,7 @@ NEXTAUTH_URL="http://localhost:3000"
 
 | Layer    | Technology                                   |
 | -------- | -------------------------------------------- |
-| Frontend | Next.js 14, React 18, TailwindCSS, shadcn/ui |
+| Frontend | Next.js 16, React 19, TailwindCSS, shadcn/ui |
 | Backend  | Fastify, Zod                                 |
 | Database | PostgreSQL, Prisma ORM                       |
 | Cache    | Redis                                        |
