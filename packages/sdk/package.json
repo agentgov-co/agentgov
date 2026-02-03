@@ -1,6 +1,6 @@
 {
   "name": "@agentgov/sdk",
-  "version": "0.1.1",
+  "version": "0.1.2",
   "description": "AgentGov SDK - AI agent observability and EU AI Act compliance",
   "type": "module",
   "private": false,

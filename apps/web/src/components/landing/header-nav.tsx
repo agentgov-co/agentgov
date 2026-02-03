@@ -66,7 +66,7 @@ export function HeaderNav(): React.JSX.Element {
               Compliance
             </a>
             <a
-              href="https://github.com/agentgov/agentgov"
+              href="https://github.com/agentgov-co/agentgov"
               target="_blank"
               rel="noopener noreferrer"
               className="text-sm text-black/60 hover:text-black transition-colors"
