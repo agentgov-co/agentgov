@@ -1,10 +1,15 @@
 'use client'
 
 import * as Sentry from '@sentry/nextjs'
+import { notFound } from 'next/navigation'
 import { Button } from '@/components/ui/button'
 import { useState } from 'react'
 
 export default function SentryExamplePage(): React.JSX.Element {
+  if (process.env.NODE_ENV === 'production') {
+    notFound()
+  }
+
   const [status, setStatus] = useState<string>('')
 
   const triggerError = (): void => {
