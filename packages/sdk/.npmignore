@@ -1,0 +1,21 @@
+# Source files
+src/
+tsconfig.json
+tsconfig.tsbuildinfo
+vitest.config.ts
+
+# Dev/test files (source and compiled)
+*.test.ts
+*.test.js
+*.test.d.ts
+*.test.d.ts.map
+*.test.js.map
+*.spec.ts
+*.spec.js
+__tests__/
+coverage/
+
+# Config
+.eslintrc
+.prettierrc
+.turbo/

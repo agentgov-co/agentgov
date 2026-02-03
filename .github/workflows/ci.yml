@@ -1,0 +1,172 @@
+name: CI
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+    branches: [main]
+
+jobs:
+  validate:
+    name: Validate
+    runs-on: ubuntu-latest
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agentgov_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/agentgov_test
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: test-secret-for-ci-only-32-chars-min
+      BETTER_AUTH_URL: http://localhost:3001
+      API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @agentgov/api exec prisma generate
+
+      - name: Verify Prisma client generated
+        run: ls -la apps/api/src/generated/prisma/
+
+      - name: Run database migrations
+        run: pnpm --filter @agentgov/api exec prisma migrate deploy
+
+      - name: Type check API (no cache)
+        run: pnpm --filter @agentgov/api type-check
+
+      - name: Type check SDK
+        run: pnpm --filter @agentgov/sdk type-check
+
+      - name: Type check Web
+        run: pnpm --filter @agentgov/web type-check
+
+      - name: Lint
+        run: pnpm lint
+
+      - name: Run tests
+        run: pnpm test
+
+      - name: Build
+        run: pnpm build
+
+  e2e:
+    name: E2E Tests
+    runs-on: ubuntu-latest
+    needs: validate
+
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_USER: postgres
+          POSTGRES_PASSWORD: postgres
+          POSTGRES_DB: agentgov_test
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd pg_isready
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+      redis:
+        image: redis:7-alpine
+        ports:
+          - 6379:6379
+        options: >-
+          --health-cmd "redis-cli ping"
+          --health-interval 10s
+          --health-timeout 5s
+          --health-retries 5
+
+    env:
+      DATABASE_URL: postgresql://postgres:postgres@localhost:5432/agentgov_test
+      REDIS_URL: redis://localhost:6379
+      BETTER_AUTH_SECRET: test-secret-for-ci-only-32-chars-min
+      BETTER_AUTH_URL: http://localhost:3001
+      API_URL: http://localhost:3001
+      NEXT_PUBLIC_API_URL: http://localhost:3001
+
+    steps:
+      - name: Checkout code
+        uses: actions/checkout@v4
+
+      - name: Setup pnpm
+        uses: pnpm/action-setup@v4
+
+      - name: Setup Node.js
+        uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: 'pnpm'
+
+      - name: Install dependencies
+        run: pnpm install --frozen-lockfile
+
+      - name: Generate Prisma client
+        run: pnpm --filter @agentgov/api exec prisma generate
+
+      - name: Run database migrations
+        run: pnpm --filter @agentgov/api exec prisma migrate deploy
+
+      - name: Install Playwright browsers (chromium only on PRs)
+        if: github.event_name == 'pull_request'
+        run: pnpm --filter @agentgov/web exec playwright install --with-deps chromium
+
+      - name: Install Playwright browsers (all on main)
+        if: github.event_name == 'push'
+        run: pnpm --filter @agentgov/web exec playwright install --with-deps chromium firefox webkit
+
+      - name: Run E2E tests (chromium only on PRs)
+        if: github.event_name == 'pull_request'
+        run: pnpm --filter @agentgov/web test:e2e --project=chromium
+
+      - name: Run E2E tests (all browsers on main)
+        if: github.event_name == 'push'
+        run: pnpm --filter @agentgov/web test:e2e
+
+      - name: Upload Playwright report
+        uses: actions/upload-artifact@v4
+        if: failure()
+        with:
+          name: playwright-report
+          path: apps/web/playwright-report/
+          retention-days: 7

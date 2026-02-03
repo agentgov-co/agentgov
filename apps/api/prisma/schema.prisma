@@ -1,0 +1,840 @@
+// Prisma Schema for AgentGov
+// Docs: https://www.prisma.io/docs/orm/prisma-schema
+
+generator client {
+  provider = "prisma-client"
+  output   = "../src/generated/prisma"
+}
+
+datasource db {
+  provider = "postgresql"
+}
+
+// ============================================
+// BETTER AUTH — Core auth models
+// ============================================
+
+model User {
+  id               String    @id @default(cuid())
+  name             String
+  email            String    @unique
+  emailVerified    Boolean   @default(false) @map("email_verified")
+  image            String?
+  twoFactorEnabled Boolean   @default(false) @map("two_factor_enabled")
+  createdAt        DateTime  @default(now()) @map("created_at")
+  updatedAt        DateTime  @updatedAt @map("updated_at")
+
+  // Relations
+  sessions      Session[]
+  accounts      Account[]
+  members       Member[]
+  invitations   Invitation[] @relation("InvitedBy")
+  apiKeys       ApiKey[]
+  auditLogs     AuditLog[]
+  twoFactors    TwoFactor[]
+  feedback      Feedback[]
+
+  @@map("users")
+}
+
+model TwoFactor {
+  id         String  @id @default(cuid())
+  secret     String
+  backupCodes String @map("backup_codes")
+
+  userId     String  @map("user_id")
+  user       User    @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  @@map("two_factors")
+}
+
+model Session {
+  id                   String   @id @default(cuid())
+  expiresAt            DateTime @map("expires_at")
+  token                String   @unique
+  ipAddress            String?  @map("ip_address")
+  userAgent            String?  @map("user_agent")
+
+  // Active organization context
+  activeOrganizationId String?  @map("active_organization_id")
+
+  userId               String   @map("user_id")
+  user                 User     @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt            DateTime @default(now()) @map("created_at")
+  updatedAt            DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt]) // For session cleanup queries
+  @@index([userId])    // For user session lookups
+  @@map("sessions")
+}
+
+model Account {
+  id                    String    @id @default(cuid())
+  accountId             String    @map("account_id")
+  providerId            String    @map("provider_id")
+  accessToken           String?   @map("access_token")
+  refreshToken          String?   @map("refresh_token")
+  idToken               String?   @map("id_token")
+  accessTokenExpiresAt  DateTime? @map("access_token_expires_at")
+  refreshTokenExpiresAt DateTime? @map("refresh_token_expires_at")
+  scope                 String?
+  password              String?
+
+  userId                String    @map("user_id")
+  user                  User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt             DateTime  @default(now()) @map("created_at")
+  updatedAt             DateTime  @updatedAt @map("updated_at")
+
+  @@map("accounts")
+}
+
+model Verification {
+  id         String   @id @default(cuid())
+  identifier String
+  value      String
+  expiresAt  DateTime @map("expires_at")
+  createdAt  DateTime @default(now()) @map("created_at")
+  updatedAt  DateTime @updatedAt @map("updated_at")
+
+  @@index([expiresAt])  // For cleanup of expired verifications
+  @@index([identifier]) // For verification lookups
+  @@map("verifications")
+}
+
+// ============================================
+// ORGANIZATIONS — Multi-tenancy
+// ============================================
+
+model Organization {
+  id        String   @id @default(cuid())
+  name      String
+  slug      String   @unique
+  logo      String?
+  metadata  Json?
+  createdAt DateTime @default(now()) @map("created_at")
+  updatedAt DateTime @updatedAt @map("updated_at")
+
+  // Relations
+  members      Member[]
+  invitations  Invitation[]
+  projects     Project[]
+  apiKeys      ApiKey[]
+  auditLogs    AuditLog[]
+  subscription Subscription?
+  usageRecords UsageRecord[]
+
+  @@map("organizations")
+}
+
+model Member {
+  id             String       @id @default(cuid())
+  role           MemberRole   @default(MEMBER)
+
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  userId         String       @map("user_id")
+  user           User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([organizationId, userId])
+  @@index([userId]) // For listing user's organizations
+  @@map("members")
+}
+
+model Invitation {
+  id             String           @id @default(cuid())
+  email          String
+  role           MemberRole       @default(MEMBER)
+  status         InvitationStatus @default(PENDING)
+  expiresAt      DateTime     @map("expires_at")
+
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  inviterId      String       @map("inviter_id")
+  inviter        User         @relation("InvitedBy", fields: [inviterId], references: [id], onDelete: Cascade)
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@index([organizationId]) // For listing org invitations
+  @@index([email])          // For checking existing invitations
+  @@index([expiresAt])      // For cleanup of expired invitations
+  @@map("invitations")
+}
+
+// ============================================
+// API KEYS — For SDK authentication
+// ============================================
+
+model ApiKey {
+  id             String    @id @default(cuid())
+  name           String
+
+  // Key storage (hashed)
+  keyHash        String    @unique @map("key_hash")
+  keyPrefix      String    @map("key_prefix") // "ag_live_" or "ag_test_"
+
+  // Ownership
+  userId         String    @map("user_id")
+  user           User      @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  organizationId String?   @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Scope
+  projectId      String?   @map("project_id")
+  project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
+  permissions    String[]  @default(["traces:write", "traces:read"])
+
+  // Rate limiting
+  rateLimit      Int       @default(1000) @map("rate_limit") // requests per hour
+
+  // Metadata
+  expiresAt      DateTime? @map("expires_at")
+  lastUsedAt     DateTime? @map("last_used_at")
+
+  createdAt      DateTime  @default(now()) @map("created_at")
+  updatedAt      DateTime  @updatedAt @map("updated_at")
+
+  @@index([keyPrefix])
+  @@index([expiresAt])      // For cleanup of expired keys
+  @@index([userId])         // For listing user's API keys
+  @@index([organizationId]) // For listing org API keys
+  @@map("api_keys")
+}
+
+// ============================================
+// AUDIT LOG — For compliance
+// ============================================
+
+model AuditLog {
+  id             String   @id @default(cuid())
+
+  // Actor
+  userId         String?  @map("user_id")
+  user           User?    @relation(fields: [userId], references: [id], onDelete: SetNull)
+  apiKeyId       String?  @map("api_key_id")
+
+  // Context
+  organizationId String?  @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: SetNull)
+
+  // Event
+  action         String   // user.login, api_key.created, org.member_added, etc.
+  resourceType   String?  @map("resource_type") // user, api_key, organization, project, trace
+  resourceId     String?  @map("resource_id")
+
+  // Details
+  ipAddress      String?  @map("ip_address")
+  userAgent      String?  @map("user_agent")
+  metadata       Json?
+
+  createdAt      DateTime @default(now()) @map("created_at")
+
+  @@index([organizationId, createdAt])
+  @@index([userId, createdAt])
+  @@index([action, createdAt])
+  @@map("audit_logs")
+}
+
+// ============================================
+// PROJECTS — Workspaces within organizations
+// ============================================
+
+model Project {
+  id             String        @id @default(cuid())
+  name           String
+  description    String?
+
+  // Organization ownership (optional for legacy projects)
+  organizationId String?       @map("organization_id")
+  organization   Organization? @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Legacy: direct API key (deprecated, use ApiKey model)
+  apiKeyHash     String?       @unique @map("api_key_hash")
+
+  // Timestamps
+  createdAt      DateTime      @default(now()) @map("created_at")
+  updatedAt      DateTime      @updatedAt @map("updated_at")
+
+  // Relations
+  traces         Trace[]
+  apiKeys        ApiKey[]
+  aiSystems      AISystem[]
+
+  @@index([organizationId])
+  @@map("projects")
+}
+
+// ============================================
+// TRACES — Complete agent executions
+// ============================================
+
+model Trace {
+  id        String      @id @default(cuid())
+
+  // Parent project
+  projectId String      @map("project_id")
+  project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Optional link to AI System for compliance tracking
+  aiSystemId String?    @map("ai_system_id")
+  aiSystem   AISystem?  @relation(fields: [aiSystemId], references: [id], onDelete: SetNull)
+
+  // Trace metadata
+  name      String?     // Optional name for the trace
+  status    TraceStatus @default(RUNNING)
+
+  // Timing
+  startedAt DateTime    @default(now()) @map("started_at")
+  endedAt   DateTime?   @map("ended_at")
+
+  // Additional data
+  input     Json?       // Input to the agent
+  output    Json?       // Output from the agent
+  metadata  Json?       // Custom metadata
+
+  // Computed fields (denormalized for performance)
+  totalCost     Float?  @default(0) @map("total_cost")
+  totalTokens   Int?    @default(0) @map("total_tokens")
+  totalDuration Int?    @map("total_duration") // milliseconds
+
+  // Timestamps
+  createdAt DateTime    @default(now()) @map("created_at")
+  updatedAt DateTime    @updatedAt @map("updated_at")
+
+  // Relations
+  spans     Span[]
+
+  @@index([projectId])
+  @@index([status])
+  @@index([startedAt])
+  @@index([projectId, createdAt])  // For dashboard time-range queries
+  @@index([projectId, status])     // For filtered listings
+  @@index([aiSystemId])            // For AI system trace filtering
+  @@index([status, createdAt])              // For status-filtered time queries
+  @@index([projectId, status, createdAt])   // For project + status + time queries
+  @@map("traces")
+}
+
+enum TraceStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+  CANCELLED
+}
+
+// ============================================
+// SPANS — Individual operations within a trace
+// ============================================
+
+model Span {
+  id        String    @id @default(cuid())
+
+  // Parent trace
+  traceId   String    @map("trace_id")
+  trace     Trace     @relation(fields: [traceId], references: [id], onDelete: Cascade)
+
+  // Parent span (for nested spans)
+  parentId  String?   @map("parent_id")
+  parent    Span?     @relation("SpanHierarchy", fields: [parentId], references: [id], onDelete: SetNull)
+  children  Span[]    @relation("SpanHierarchy")
+
+  // Span details
+  name      String                // "llm_call", "tool_call", "agent_step", etc.
+  type      SpanType
+  status    SpanStatus @default(RUNNING)
+
+  // Timing
+  startedAt DateTime   @default(now()) @map("started_at")
+  endedAt   DateTime?  @map("ended_at")
+  duration  Int?       // milliseconds
+
+  // Input/Output
+  input     Json?
+  output    Json?
+  error     String?    @db.VarChar(5000) // Error message if failed
+
+  // LLM specific fields
+  model         String?  // "gpt-4", "claude-3", etc.
+  promptTokens  Int?     @map("prompt_tokens")
+  outputTokens  Int?     @map("output_tokens")
+  cost          Float?   // USD
+
+  // Tool specific fields
+  toolName      String?  @map("tool_name")
+  toolInput     Json?    @map("tool_input")
+  toolOutput    Json?    @map("tool_output")
+
+  // Additional metadata
+  metadata  Json?
+
+  // Timestamps
+  createdAt DateTime   @default(now()) @map("created_at")
+  updatedAt DateTime   @updatedAt @map("updated_at")
+
+  @@index([traceId])
+  @@index([parentId])
+  @@index([type])
+  @@index([startedAt])
+  @@index([traceId, type])        // For type-filtered span queries
+  @@index([traceId, startedAt])   // For time-ordered span queries
+  @@map("spans")
+}
+
+enum SpanType {
+  LLM_CALL      // Call to LLM (OpenAI, Anthropic, etc.)
+  TOOL_CALL     // Tool/function execution
+  AGENT_STEP    // High-level agent step
+  RETRIEVAL     // RAG retrieval
+  EMBEDDING     // Embedding generation
+  CUSTOM        // Custom span type
+}
+
+enum SpanStatus {
+  RUNNING
+  COMPLETED
+  FAILED
+}
+
+// ============================================
+// MEMBER & INVITATION ENUMS
+// ============================================
+
+enum MemberRole {
+  OWNER
+  ADMIN
+  MEMBER
+}
+
+enum InvitationStatus {
+  PENDING
+  ACCEPTED
+  REJECTED
+  EXPIRED
+}
+
+enum OversightLevel {
+  MONITORING
+  APPROVAL
+  FULL_CONTROL
+}
+
+// ============================================
+// BILLING — Plans, Subscriptions, Usage
+// ============================================
+
+enum PlanTier {
+  FREE_BETA   // Current beta users - generous limits
+  FREE        // Post-beta free tier
+  STARTER     // Entry paid tier
+  PRO         // Professional tier
+  ENTERPRISE  // Custom enterprise
+}
+
+enum SubscriptionStatus {
+  ACTIVE
+  PAST_DUE
+  CANCELED
+  TRIALING
+}
+
+model PlanLimit {
+  id             String   @id @default(cuid())
+  tier           PlanTier @unique
+
+  // Limits
+  tracesPerMonth Int      @map("traces_per_month")
+  projectsMax    Int      @map("projects_max")
+  membersMax     Int      @map("members_max")
+  retentionDays  Int      @map("retention_days")
+
+  // Feature flags (JSON for flexibility)
+  features       Json     @default("{}")
+
+  // Stripe price IDs (empty if billing disabled or free tier)
+  stripePriceId  String?  @map("stripe_price_id")
+
+  createdAt      DateTime @default(now()) @map("created_at")
+  updatedAt      DateTime @updatedAt @map("updated_at")
+
+  @@map("plan_limits")
+}
+
+model UsageRecord {
+  id             String       @id @default(cuid())
+
+  organizationId String       @map("organization_id")
+  organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Period (monthly)
+  periodStart    DateTime     @map("period_start")
+  periodEnd      DateTime     @map("period_end")
+
+  // Counters
+  tracesCount    Int          @default(0) @map("traces_count")
+
+  // Warning flags
+  warningAt80    Boolean      @default(false) @map("warning_at_80")
+  warningAt100   Boolean      @default(false) @map("warning_at_100")
+
+  createdAt      DateTime     @default(now()) @map("created_at")
+  updatedAt      DateTime     @updatedAt @map("updated_at")
+
+  @@unique([organizationId, periodStart])
+  @@index([periodStart, periodEnd])
+  @@map("usage_records")
+}
+
+model Subscription {
+  id                   String             @id @default(cuid())
+
+  organizationId       String             @unique @map("organization_id")
+  organization         Organization       @relation(fields: [organizationId], references: [id], onDelete: Cascade)
+
+  // Current plan
+  tier                 PlanTier           @default(FREE_BETA)
+  status               SubscriptionStatus @default(ACTIVE)
+
+  // Stripe IDs (null if billing disabled)
+  stripeCustomerId     String?            @map("stripe_customer_id")
+  stripeSubscriptionId String?            @map("stripe_subscription_id")
+
+  // Billing period
+  currentPeriodStart   DateTime?          @map("current_period_start")
+  currentPeriodEnd     DateTime?          @map("current_period_end")
+
+  // Cancellation
+  cancelAtPeriodEnd    Boolean            @default(false) @map("cancel_at_period_end")
+  canceledAt           DateTime?          @map("canceled_at")
+
+  createdAt            DateTime           @default(now()) @map("created_at")
+  updatedAt            DateTime           @updatedAt @map("updated_at")
+
+  @@map("subscriptions")
+}
+
+// ============================================
+// EU AI ACT COMPLIANCE
+// ============================================
+
+enum RiskLevel {
+  PROHIBITED  // Article 5 - banned uses
+  HIGH        // Annex III - require conformity assessment
+  LIMITED     // Article 50 - transparency requirements only
+  MINIMAL     // No specific requirements
+  UNKNOWN     // Not yet assessed
+}
+
+enum ComplianceStatus {
+  NOT_ASSESSED  // Initial state
+  IN_PROGRESS   // Assessment started
+  COMPLIANT     // All obligations met
+  NON_COMPLIANT // Has unmet obligations
+  EXEMPT        // Explicitly exempt from EU AI Act
+}
+
+enum ObligationStatus {
+  PENDING       // Not started
+  IN_PROGRESS   // Work in progress
+  COMPLETED     // Done
+  NOT_APPLICABLE // N/A for this system
+}
+
+enum DocumentType {
+  TECHNICAL_DOCUMENTATION      // Article 11
+  RISK_MANAGEMENT              // Article 9
+  DATA_GOVERNANCE              // Article 10
+  HUMAN_OVERSIGHT              // Article 14
+  CONFORMITY_DECLARATION       // Article 47
+  FRIA                         // Fundamental Rights Impact Assessment
+  TRANSPARENCY_NOTICE          // Article 50
+  INCIDENT_REPORT              // Article 62
+  POST_MARKET_MONITORING       // Article 72
+}
+
+enum IncidentSeverity {
+  LOW
+  MEDIUM
+  HIGH
+  CRITICAL
+}
+
+enum IncidentType {
+  SAFETY               // Physical/psychological harm
+  FUNDAMENTAL_RIGHTS   // Discrimination, privacy violation
+  MALFUNCTION          // System failure or error
+  MISUSE               // Use outside intended purpose
+  SECURITY             // Security breach or vulnerability
+  OTHER
+}
+
+// AI System registered for compliance tracking
+model AISystem {
+  id             String           @id @default(cuid())
+
+  // Basic info
+  name           String
+  description    String?
+  version        String?
+
+  // Classification results
+  riskLevel      RiskLevel        @default(UNKNOWN) @map("risk_level")
+  complianceStatus ComplianceStatus @default(NOT_ASSESSED) @map("compliance_status")
+
+  // EU AI Act specific
+  annexIIICategory String?        @map("annex_iii_category") // e.g., "biometrics", "critical_infrastructure"
+  prohibitedReason String?        @map("prohibited_reason")  // If PROHIBITED, why
+
+  // Wizard data (full JSON for audit trail)
+  wizardData     Json?            @map("wizard_data")
+
+  // Deployment context
+  deployedInEU   Boolean          @default(true) @map("deployed_in_eu")
+  affectsEUCitizens Boolean       @default(true) @map("affects_eu_citizens")
+  intendedPurpose String?         @map("intended_purpose")
+  intendedUsers  String?          @map("intended_users")
+
+  // Risk reasoning (AI classification explanation)
+  riskReasoning  String?          @map("risk_reasoning")
+  applicableArticles String[]     @default([]) @map("applicable_articles")
+
+  // Project relationship
+  projectId      String           @map("project_id")
+  project        Project          @relation(fields: [projectId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+  assessedAt     DateTime?        @map("assessed_at")
+
+  // Soft delete
+  deletedAt      DateTime?        @map("deleted_at")
+
+  // Relations
+  obligations    ComplianceObligation[]
+  documents      ComplianceDocument[]
+  incidents      IncidentReport[]
+  oversightConfig HumanOversightConfig?
+  traces         Trace[]                 // Traces associated with this AI system
+
+  @@index([projectId])
+  @@index([riskLevel])
+  @@index([complianceStatus])
+  @@index([deletedAt])
+  @@map("ai_systems")
+}
+
+// Compliance obligations derived from risk level
+model ComplianceObligation {
+  id             String           @id @default(cuid())
+
+  // Reference to EU AI Act
+  articleNumber  String           @map("article_number") // e.g., "Article 9"
+  articleTitle   String           @map("article_title")  // e.g., "Risk Management System"
+  description    String
+
+  // Status tracking
+  status         ObligationStatus @default(PENDING)
+  notes          String?
+  completedAt    DateTime?        @map("completed_at")
+
+  // Deadline (if applicable)
+  deadline       DateTime?
+
+  // Parent AI System
+  aiSystemId     String           @map("ai_system_id")
+  aiSystem       AISystem         @relation(fields: [aiSystemId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([aiSystemId])
+  @@index([status])
+  @@index([aiSystemId, status])   // For filtered obligation queries
+  @@map("compliance_obligations")
+}
+
+// Generated compliance documents
+model ComplianceDocument {
+  id             String           @id @default(cuid())
+
+  // Document info
+  type           DocumentType
+  title          String
+  content        String           @db.Text  // Markdown content
+  version        Int              @default(1)
+
+  // Generation metadata
+  generatedFrom  Json?            @map("generated_from")  // Source data used
+
+  // Parent AI System
+  aiSystemId     String           @map("ai_system_id")
+  aiSystem       AISystem         @relation(fields: [aiSystemId], references: [id], onDelete: Cascade)
+
+  // Soft delete
+  deletedAt      DateTime?        @map("deleted_at")
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([aiSystemId])
+  @@index([type])
+  @@map("compliance_documents")
+}
+
+// Incident reports (Article 62)
+model IncidentReport {
+  id             String           @id @default(cuid())
+
+  // Incident details
+  title          String
+  description    String           @db.VarChar(10000)
+  severity       IncidentSeverity
+  type           IncidentType
+
+  // Timeline
+  occurredAt     DateTime         @map("occurred_at")
+  detectedAt     DateTime         @map("detected_at")
+  resolvedAt     DateTime?        @map("resolved_at")
+
+  // Impact assessment
+  impactDescription String?       @map("impact_description") @db.VarChar(10000)
+  affectedUsers  Int?             @map("affected_users")
+
+  // Remediation
+  rootCause      String?          @map("root_cause") @db.VarChar(10000)
+  remediationSteps String?        @map("remediation_steps") @db.VarChar(10000)
+  preventiveMeasures String?      @map("preventive_measures") @db.VarChar(10000)
+
+  // Reporting status
+  reportedToAuthority Boolean     @default(false) @map("reported_to_authority")
+  reportedAt     DateTime?        @map("reported_at")
+
+  // Parent AI System
+  aiSystemId     String           @map("ai_system_id")
+  aiSystem       AISystem         @relation(fields: [aiSystemId], references: [id], onDelete: Cascade)
+
+  // Soft delete
+  deletedAt      DateTime?        @map("deleted_at")
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  @@index([aiSystemId])
+  @@index([severity])
+  @@index([occurredAt])
+  @@index([deletedAt])
+  @@index([aiSystemId, severity])  // For severity-filtered incident queries
+  @@map("incident_reports")
+}
+
+// Human oversight configuration (Article 14)
+model HumanOversightConfig {
+  id             String           @id @default(cuid())
+
+  // Oversight requirements
+  oversightLevel OversightLevel   @default(MONITORING) @map("oversight_level")
+  humanInLoop    Boolean          @default(false) @map("human_in_loop")
+  humanOnLoop    Boolean          @default(true) @map("human_on_loop")
+  humanInCommand Boolean          @default(false) @map("human_in_command")
+
+  // Stop mechanisms
+  canInterrupt   Boolean          @default(true) @map("can_interrupt")
+  canOverride    Boolean          @default(true) @map("can_override")
+  canShutdown    Boolean          @default(true) @map("can_shutdown")
+
+  // Monitoring configuration
+  monitoringFrequency String?     @map("monitoring_frequency") // e.g., "real-time", "hourly", "daily"
+  alertThresholds Json?           @map("alert_thresholds")
+
+  // Responsible persons
+  responsiblePersons Json?        @map("responsible_persons") // Array of contact info
+
+  // Documentation
+  trainingRequired Boolean        @default(true) @map("training_required")
+  trainingCompleted Boolean       @default(false) @map("training_completed")
+  procedureDocumented Boolean     @default(false) @map("procedure_documented")
+
+  // Parent AI System (1:1)
+  aiSystemId     String           @unique @map("ai_system_id")
+  aiSystem       AISystem         @relation(fields: [aiSystemId], references: [id], onDelete: Cascade)
+
+  // Timestamps
+  createdAt      DateTime         @default(now()) @map("created_at")
+  updatedAt      DateTime         @updatedAt @map("updated_at")
+
+  // Change history
+  history        OversightChangeHistory[]
+
+  @@map("human_oversight_configs")
+}
+
+// Audit trail for oversight configuration changes
+model OversightChangeHistory {
+  id             String           @id @default(cuid())
+
+  // What changed
+  fieldName      String           @map("field_name")
+  oldValue       String?          @map("old_value")
+  newValue       String?          @map("new_value")
+
+  // Who changed it
+  changedBy      String?          @map("changed_by") // User email or ID
+  changeReason   String?          @map("change_reason")
+
+  // Parent config
+  oversightConfigId String        @map("oversight_config_id")
+  oversightConfig HumanOversightConfig @relation(fields: [oversightConfigId], references: [id], onDelete: Cascade)
+
+  // Timestamp
+  changedAt      DateTime         @default(now()) @map("changed_at")
+
+  @@index([oversightConfigId])
+  @@index([changedAt])
+  @@map("oversight_change_history")
+}
+
+// ============================================
+// FEEDBACK — Beta user feedback
+// ============================================
+
+enum FeedbackType {
+  BUG
+  FEATURE
+  IMPROVEMENT
+  OTHER
+}
+
+model Feedback {
+  id        String       @id @default(cuid())
+
+  // Author
+  userId    String       @map("user_id")
+  user      User         @relation(fields: [userId], references: [id], onDelete: Cascade)
+
+  // Content
+  type      FeedbackType @default(OTHER)
+  message   String       @db.VarChar(5000)
+
+  // Metadata
+  page      String?      // URL path where feedback was submitted
+  metadata  Json?
+
+  // Timestamps
+  createdAt DateTime     @default(now()) @map("created_at")
+
+  @@index([userId])
+  @@index([type])
+  @@index([createdAt])
+  @@map("feedback")
+}

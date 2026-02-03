@@ -1,0 +1,75 @@
+{
+  "name": "@agentgov/sdk",
+  "version": "0.1.0",
+  "description": "AgentGov SDK - AI agent observability and EU AI Act compliance",
+  "type": "module",
+  "private": false,
+  "main": "./dist/index.js",
+  "module": "./dist/index.js",
+  "types": "./dist/index.d.ts",
+  "exports": {
+    ".": {
+      "import": "./dist/index.js",
+      "types": "./dist/index.d.ts"
+    },
+    "./openai": {
+      "import": "./dist/wrappers/openai.js",
+      "types": "./dist/wrappers/openai.d.ts"
+    },
+    "./vercel-ai": {
+      "import": "./dist/wrappers/vercel-ai.js",
+      "types": "./dist/wrappers/vercel-ai.d.ts"
+    }
+  },
+  "files": [
+    "dist",
+    "README.md"
+  ],
+  "scripts": {
+    "build": "tsc",
+    "dev": "tsc --watch",
+    "type-check": "tsc --noEmit",
+    "clean": "rm -rf dist",
+    "test": "vitest run",
+    "test:watch": "vitest"
+  },
+  "publishConfig": {
+    "access": "public"
+  },
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/amadc2207/agentgov"
+  },
+  "homepage": "https://agentgov.co",
+  "keywords": [
+    "ai",
+    "agents",
+    "llm",
+    "observability",
+    "tracing",
+    "monitoring",
+    "eu-ai-act",
+    "compliance",
+    "openai",
+    "anthropic",
+    "langchain",
+    "governance"
+  ],
+  "author": "AgentGov",
+  "license": "MIT",
+  "devDependencies": {
+    "typescript": "^5.6.0",
+    "vitest": "^4.0.18"
+  },
+  "peerDependencies": {
+    "openai": ">=4.0.0"
+  },
+  "peerDependenciesMeta": {
+    "openai": {
+      "optional": true
+    }
+  },
+  "engines": {
+    "node": ">=18"
+  }
+}

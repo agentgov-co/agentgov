@@ -1,0 +1,42 @@
+{
+  "name": "agentgov",
+  "private": true,
+  "type": "module",
+  "packageManager": "pnpm@9.15.0",
+  "scripts": {
+    "dev": "turbo dev",
+    "build": "turbo build",
+    "build:api": "turbo build --filter=@agentgov/api",
+    "build:web": "turbo build --filter=@agentgov/web",
+    "start:api": "pnpm --filter @agentgov/api start",
+    "start:web": "pnpm --filter @agentgov/web start",
+    "lint": "turbo lint",
+    "type-check": "turbo type-check",
+    "typecheck": "turbo type-check",
+    "test": "turbo test",
+    "db:push": "pnpm --filter @agentgov/api db:push",
+    "db:studio": "pnpm --filter @agentgov/api db:studio",
+    "db:migrate": "pnpm --filter @agentgov/api db:migrate",
+    "db:seed": "pnpm --filter @agentgov/api db:seed"
+  },
+  "devDependencies": {
+    "@types/ws": "^8.18.1",
+    "openai": "^4.77.0",
+    "tsx": "^4.19.0",
+    "turbo": "^2.5.0",
+    "typescript": "^5.7.0",
+    "ws": "^8.19.0"
+  },
+  "engines": {
+    "node": ">=22.0.0"
+  },
+  "pnpm": {
+    "overrides": {
+      "lodash@>=4.0.0 <4.17.23": "4.17.23",
+      "hono@<4.11.7": "4.11.7"
+    },
+    "auditConfig": {
+      "ignoreCves": []
+    }
+  }
+}
