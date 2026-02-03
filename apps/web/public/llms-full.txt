@@ -1,0 +1,151 @@
+# AgentGov — AI Agent Governance Platform
+
+> AgentGov is the only platform that combines AI observability with EU AI Act compliance in one solution. Monitor, secure, and govern your AI agents with real-time tracing, risk classification, and compliance documentation.
+
+## What AgentGov Does
+
+AgentGov provides two core capabilities:
+
+1. **AI Observability** — Real-time tracing of AI agent executions, comparable to tools like Langfuse and LangSmith
+2. **Regulatory Compliance** — EU AI Act compliance features including risk classification, documentation generation, and incident tracking
+
+These are unified in a single platform so teams don't need separate tools for monitoring and compliance.
+
+## Detailed Feature Breakdown
+
+### Tracing & Observability
+
+- **Full Trace Capture**: Every LLM call, tool use, and agent step is recorded with input/output, latency, and cost
+- **Span Hierarchy**: Traces contain spans organized in a parent-child tree, showing exact execution flow
+- **Timeline View**: Gantt-style timeline visualization showing parallel and sequential execution
+- **Tree View**: Hierarchical view of agent execution with expandable nodes
+- **Real-time Updates**: WebSocket-based live updates — see traces as they execute
+- **Cost Tracking**: Per-model, per-project, and per-user cost analytics in USD
+- **Token Counting**: Automatic token usage tracking for all supported models
+
+### EU AI Act Compliance
+
+- **Risk Classification**: Classify AI systems using Annex III categories (Unacceptable, High, Limited, Minimal)
+- **Fundamental Rights Impact Assessment (FRIA)**: Generate FRIA reports for high-risk AI systems
+- **Technical Documentation**: Auto-generate Article 11 technical documentation templates
+- **Incident Tracking**: Log and manage AI incidents with severity levels (Critical, High, Medium, Low)
+- **Human Oversight**: Configure human-in-the-loop requirements per AI system
+- **Compliance Obligations**: Track which EU AI Act articles apply to each system
+- **Audit Export**: Export compliance data for external auditors
+
+### Workspace & Team Management
+
+- **Multi-Project Workspaces**: Isolated environments with separate API keys per project
+- **Role-Based Access Control**: Owner, Admin, and Member roles with fine-grained permissions
+- **Team Invitations**: Email-based invitations with role assignment
+- **Two-Factor Authentication**: TOTP-based 2FA for account security
+- **API Key Management**: Hashed API keys with IP allowlisting support
+
+## SDK — @agentgov/sdk
+
+The SDK is published on npm as `@agentgov/sdk`. It has zero dependencies and is under 100 lines of code.
+
+### Installation
+
+```bash
+npm install @agentgov/sdk
+```
+
+### OpenAI Integration
+
+```typescript
+import { AgentGov } from '@agentgov/sdk'
+import OpenAI from 'openai'
+
+const ag = new AgentGov({ apiKey: process.env.AGENTGOV_API_KEY })
+const openai = ag.wrapOpenAI(new OpenAI())
+
+// All calls are now automatically traced
+const response = await openai.chat.completions.create({
+  model: 'gpt-4',
+  messages: [{ role: 'user', content: 'Hello' }],
+})
+```
+
+### Vercel AI SDK Integration
+
+```typescript
+import { AgentGov } from '@agentgov/sdk'
+import { openai } from '@ai-sdk/openai'
+import { generateText } from 'ai'
+
+const ag = new AgentGov({ apiKey: process.env.AGENTGOV_API_KEY })
+
+const result = await generateText({
+  model: openai('gpt-4'),
+  prompt: 'Hello',
+  experimental_telemetry: ag.telemetryConfig(),
+})
+```
+
+### REST API
+
+For custom integrations, use the REST API directly:
+
+- `POST /v1/traces` — Create a trace
+- `POST /v1/spans` — Create a span within a trace
+- `GET /v1/traces` — List traces with filtering and pagination
+- `GET /v1/traces/:id` — Get trace details with all spans
+
+All endpoints require an `x-api-key` header with your project API key.
+
+## Architecture
+
+- **Frontend**: Next.js 14 with App Router, React 18, TailwindCSS, shadcn/ui
+- **Backend**: Fastify with Zod validation
+- **Database**: PostgreSQL with Prisma ORM
+- **Caching**: Redis for query caching and background jobs
+- **Auth**: API keys (hashed with SHA-256) for SDK, NextAuth.js for dashboard
+- **Deployment**: Vercel (frontend), any Node.js host (API)
+
+## Data Model
+
+- **Project**: Tenant workspace with its own API key, team members, and settings
+- **Trace**: Complete agent execution from start to finish, containing multiple spans
+- **Span**: Single operation within a trace — can be an LLM call, tool call, or agent step
+- **AI System**: Registered AI system for EU AI Act compliance tracking
+- **Incident**: Logged AI incident with severity, description, and resolution status
+
+## Pricing Plans
+
+| Plan | Price | Traces/month | Projects | Team Members | Compliance |
+|------|-------|-------------|----------|-------------|------------|
+| Free (Beta) | $0 | 10K | 1 | 1 | Basic |
+| Starter | $29/mo | 100K | 5 | 3 | Full |
+| Pro | $99/mo | 500K | Unlimited | 10 | Full + FRIA |
+| Enterprise | Custom | Unlimited | Unlimited | Unlimited | Custom |
+
+All plans are currently free during the public beta period.
+
+## Who Should Use AgentGov
+
+- **AI Engineering Teams**: Get visibility into agent behavior, debug issues, and optimize costs
+- **Compliance Officers**: Manage EU AI Act obligations across the organization
+- **CTOs/VPs of Engineering**: Understand AI usage patterns and enforce governance policies
+- **SMBs in the EU**: Affordable compliance tooling (vs enterprise-only alternatives like Credo AI)
+
+## Competitive Landscape
+
+| Feature | AgentGov | Langfuse | LangSmith | Credo AI |
+|---------|----------|----------|-----------|----------|
+| Tracing | Yes | Yes | Yes | No |
+| Cost Tracking | Yes | Yes | Yes | No |
+| EU AI Act Compliance | Yes | No | No | Yes |
+| Risk Classification | Yes | No | No | Yes |
+| FRIA Reports | Yes | No | No | Yes |
+| Free Tier | Yes | Yes | Limited | No |
+| Open Source | Yes | Yes | No | No |
+| SMB Pricing | Yes | Yes | Yes | No |
+
+## Links
+
+- Website: https://agentgov.co
+- Dashboard: https://agentgov.co/dashboard
+- SDK on npm: https://www.npmjs.com/package/@agentgov/sdk
+- GitHub: https://github.com/agentgov-co/agentgov
+- Contact: support@agentgov.co

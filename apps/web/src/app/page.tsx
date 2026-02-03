@@ -16,6 +16,7 @@ import { Logo } from "@/components/logo";
 import { HowItWorks } from "@/components/landing/how-it-works";
 import { TrustedBy } from "@/components/landing/trusted-by";
 import { HeaderNav } from "@/components/landing/header-nav";
+import { FAQSection } from "@/components/landing/faq-section";
 import { BorderBeam } from "@/components/ui/border-beam";
 
 const integrations = [
@@ -940,6 +941,17 @@ export default function Home(): React.JSX.Element {
         />
       </div>
 
+      {/* FAQ */}
+      <section
+        className="bg-black text-white border-b border-white/10"
+        style={{
+          backgroundImage: `radial-gradient(circle, rgba(255,255,255,0.07) 1px, transparent 1px)`,
+          backgroundSize: "20px 20px",
+        }}
+      >
+        <FAQSection />
+      </section>
+
       {/* CTA */}
       <section
         className="bg-black text-white"
@@ -987,6 +999,9 @@ export default function Home(): React.JSX.Element {
               </a>
               <a href="#pricing" className="hover:text-black transition-colors">
                 Pricing
+              </a>
+              <a href="#faq" className="hover:text-black transition-colors">
+                FAQ
               </a>
               <a
                 href="https://github.com/agentgov-co/agentgov"
