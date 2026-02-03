@@ -88,15 +88,19 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
       const session = await auth.api.getSession({ headers })
 
       if (session?.user && session?.session) {
+        // twoFactorEnabled is already included by the twoFactor plugin on session.user
+        const user = session.user as typeof session.user & { twoFactorEnabled?: boolean }
+
         // Map Better Auth types to our types
         request.user = {
-          id: session.user.id,
-          name: session.user.name,
-          email: session.user.email,
-          emailVerified: session.user.emailVerified,
-          image: session.user.image ?? null,
-          createdAt: session.user.createdAt,
-          updatedAt: session.user.updatedAt,
+          id: user.id,
+          name: user.name,
+          email: user.email,
+          emailVerified: user.emailVerified,
+          image: user.image ?? null,
+          twoFactorEnabled: user.twoFactorEnabled ?? false,
+          createdAt: user.createdAt,
+          updatedAt: user.updatedAt,
         }
         request.session = {
           id: session.session.id,
@@ -150,6 +154,7 @@ declare module 'fastify' {
       email: string
       emailVerified: boolean
       image: string | null
+      twoFactorEnabled: boolean
       createdAt: Date
       updatedAt: Date
     } | null
