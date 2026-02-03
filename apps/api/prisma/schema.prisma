@@ -192,6 +192,9 @@ model ApiKey {
   project        Project?  @relation(fields: [projectId], references: [id], onDelete: SetNull)
   permissions    String[]  @default(["traces:write", "traces:read"])
 
+  // IP whitelist (empty = no restriction)
+  allowedIps     String[]  @default([]) @map("allowed_ips")
+
   // Rate limiting
   rateLimit      Int       @default(1000) @map("rate_limit") // requests per hour
 
