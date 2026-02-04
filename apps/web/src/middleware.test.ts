@@ -71,33 +71,44 @@ describe('buildCsp', () => {
   })
 })
 
-describe('Middleware: nonce-based CSP', () => {
-  it('should set Content-Security-Policy response header with nonce', () => {
+describe('Middleware: CSP strategy', () => {
+  it('should NOT set CSP for static pages (CSP comes from next.config)', () => {
     const response = middleware(createRequest('/'))
-    const csp = response.headers.get('Content-Security-Policy')!
-
-    expect(csp).toContain(`'nonce-${EXPECTED_NONCE}'`)
+    expect(response.headers.get('Content-Security-Policy')).toBeNull()
   })
 
-  it('should pass nonce to server components via x-nonce request header', () => {
-    // NextResponse.next({ request: { headers } }) merges headers into the
-    // request that downstream handlers (server components) receive.
-    // Next.js exposes these as 'x-middleware-request-*' headers on the response.
-    const response = middleware(createRequest('/'))
-    const middlewareNonce = response.headers.get('x-middleware-request-x-nonce')
+  it('should NOT set CSP for /login (CSP comes from next.config)', () => {
+    const response = middleware(createRequest('/login'))
+    expect(response.headers.get('Content-Security-Policy')).toBeNull()
+  })
 
+  it('should set nonce-based CSP for /dashboard (SSR route)', () => {
+    const response = middleware(createRequest('/dashboard', {
+      'agentgov.session_token': 'valid-session',
+    }))
+    const csp = response.headers.get('Content-Security-Policy')!
+    const scriptSrc = csp.match(/script-src\s+([^;]+)/)?.[1] ?? ''
+
+    expect(scriptSrc).toContain(`'nonce-${EXPECTED_NONCE}'`)
+    expect(scriptSrc).toContain("'strict-dynamic'")
+    expect(scriptSrc).not.toContain("'unsafe-inline'")
+  })
+
+  it('should pass nonce via x-nonce header for /dashboard', () => {
+    const response = middleware(createRequest('/dashboard', {
+      'agentgov.session_token': 'valid-session',
+    }))
+    const middlewareNonce = response.headers.get('x-middleware-request-x-nonce')
     expect(middlewareNonce).toBe(EXPECTED_NONCE)
   })
 
-  it('should use the same nonce in both CSP header and x-nonce', () => {
+  it('should NOT pass x-nonce header for static pages', () => {
     const response = middleware(createRequest('/'))
-    const csp = response.headers.get('Content-Security-Policy')!
-    const nonceInCsp = csp.match(/nonce-([^']+)/)?.[1]
-    const nonceInHeader = response.headers.get('x-middleware-request-x-nonce')
-
-    expect(nonceInCsp).toBe(nonceInHeader)
+    expect(response.headers.get('x-middleware-request-x-nonce')).toBeNull()
   })
+})
 
+describe('Middleware: nonce uniqueness', () => {
   it('should generate a unique nonce per request', () => {
     let callCount = 0
     vi.stubGlobal('crypto', {
@@ -110,13 +121,28 @@ describe('Middleware: nonce-based CSP', () => {
       },
     })
 
-    const csp1 = middleware(createRequest('/')).headers.get('Content-Security-Policy')!
-    const csp2 = middleware(createRequest('/')).headers.get('Content-Security-Policy')!
+    const csp1 = middleware(createRequest('/dashboard', {
+      'agentgov.session_token': 's',
+    })).headers.get('Content-Security-Policy')!
+    const csp2 = middleware(createRequest('/dashboard', {
+      'agentgov.session_token': 's',
+    })).headers.get('Content-Security-Policy')!
 
     const nonce1 = csp1.match(/nonce-([^']+)/)?.[1]
     const nonce2 = csp2.match(/nonce-([^']+)/)?.[1]
 
     expect(nonce1).not.toBe(nonce2)
+  })
+
+  it('should use the same nonce in both CSP header and x-nonce', () => {
+    const response = middleware(createRequest('/dashboard', {
+      'agentgov.session_token': 's',
+    }))
+    const csp = response.headers.get('Content-Security-Policy')!
+    const nonceInCsp = csp.match(/nonce-([^']+)/)?.[1]
+    const nonceInHeader = response.headers.get('x-middleware-request-x-nonce')
+
+    expect(nonceInCsp).toBe(nonceInHeader)
   })
 })
 
@@ -138,11 +164,9 @@ describe('Middleware: auth redirects', () => {
     expect(response.headers.get('Location')).toContain('/dashboard')
   })
 
-  it('should allow unauthenticated users to access /login with CSP', () => {
+  it('should allow unauthenticated users to access /login', () => {
     const response = middleware(createRequest('/login'))
-
     expect(response.status).toBe(200)
-    expect(response.headers.get('Content-Security-Policy')).toBeTruthy()
   })
 
   it('should allow authenticated users to access /dashboard with CSP', () => {
@@ -156,9 +180,6 @@ describe('Middleware: auth redirects', () => {
 })
 
 describe('Middleware: matcher config', () => {
-  // Next.js matcher pattern: '/((?!exclusions).*)'
-  // Converts to a regex that matches paths NOT starting with excluded prefixes.
-  // We reconstruct the full regex to test it the same way Next.js does.
   const matcherPattern = config.matcher[0]
   const fullRegex = new RegExp(`^${matcherPattern}$`)
 
