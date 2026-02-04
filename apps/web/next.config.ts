@@ -33,11 +33,12 @@ const nextConfig: NextConfig = {
     // Middleware overwrites this with a stricter nonce-based CSP for SSR routes.
     const staticCsp = [
       "default-src 'self'",
-      `script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://*.sentry.io`,
+      `script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://vercel.live https://*.sentry.io`,
       "style-src 'self' 'unsafe-inline'",
       "img-src 'self' data: https:",
-      `connect-src 'self' ${apiUrl} ws: wss: https://*.sentry.io https://va.vercel-scripts.com`,
+      `connect-src 'self' ${apiUrl} ws: wss: https://*.sentry.io https://va.vercel-scripts.com https://vercel.live`,
       "font-src 'self'",
+      "frame-src 'self' https://vercel.live",
       "frame-ancestors 'none'",
     ].join('; ')
 

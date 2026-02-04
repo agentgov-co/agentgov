@@ -25,11 +25,12 @@ export function buildCsp(nonce: string): string {
   // nonced scripts + scripts they dynamically load (e.g. Vercel Analytics).
   const directives = [
     "default-src 'self'",
-    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://va.vercel-scripts.com https://*.sentry.io`,
+    `script-src 'self' 'nonce-${nonce}' 'strict-dynamic' https://va.vercel-scripts.com https://vercel.live https://*.sentry.io`,
     "style-src 'self' 'unsafe-inline'",
     "img-src 'self' data: https:",
-    `connect-src 'self' ${apiUrl} ws: wss: https://*.sentry.io https://va.vercel-scripts.com`,
+    `connect-src 'self' ${apiUrl} ws: wss: https://*.sentry.io https://va.vercel-scripts.com https://vercel.live`,
     "font-src 'self'",
+    "frame-src 'self' https://vercel.live",
     "frame-ancestors 'none'",
   ]
 
