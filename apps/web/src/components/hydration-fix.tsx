@@ -19,6 +19,7 @@ export function HydrationFix({ nonce }: { nonce?: string }): React.JSX.Element {
     <script
       id="hydration-fix"
       nonce={nonce}
+      suppressHydrationWarning
       dangerouslySetInnerHTML={{
         __html: `
           (function() {
