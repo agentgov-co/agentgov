@@ -1,14 +1,16 @@
 import { z } from 'zod'
+import type { MemberRole, InvitationStatus, TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
+
+// Re-export domain types from shared for convenience
+export type { MemberRole, InvitationStatus, TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
 
 // ============================================
 // Member & Invitation Enums
 // ============================================
 
-export const MemberRoleSchema = z.enum(['OWNER', 'ADMIN', 'MEMBER'])
-export type MemberRole = z.infer<typeof MemberRoleSchema>
+export const MemberRoleSchema: z.ZodEnum<[MemberRole, ...MemberRole[]]> = z.enum(['OWNER', 'ADMIN', 'MEMBER'])
 
-export const InvitationStatusSchema = z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
-export type InvitationStatus = z.infer<typeof InvitationStatusSchema>
+export const InvitationStatusSchema: z.ZodEnum<[InvitationStatus, ...InvitationStatus[]]> = z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
 
 // ============================================
 // Shared Validators
@@ -42,7 +44,7 @@ export type CreateProject = z.infer<typeof CreateProjectSchema>
 // Trace Schemas
 // ============================================
 
-export const TraceStatusSchema = z.enum(['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'])
+export const TraceStatusSchema: z.ZodEnum<[TraceStatus, ...TraceStatus[]]> = z.enum(['RUNNING', 'COMPLETED', 'FAILED', 'CANCELLED'])
 
 export const CreateTraceSchema = z.object({
   name: z.string().max(200).optional(),
@@ -71,16 +73,16 @@ export type TraceQuery = z.infer<typeof TraceQuerySchema>
 // Span Schemas
 // ============================================
 
-export const SpanTypeSchema = z.enum([
+export const SpanTypeSchema: z.ZodEnum<[SpanType, ...SpanType[]]> = z.enum([
   'LLM_CALL',
   'TOOL_CALL',
   'AGENT_STEP',
   'RETRIEVAL',
   'EMBEDDING',
-  'CUSTOM'
+  'CUSTOM',
 ])
 
-export const SpanStatusSchema = z.enum(['RUNNING', 'COMPLETED', 'FAILED'])
+export const SpanStatusSchema: z.ZodEnum<[SpanStatus, ...SpanStatus[]]> = z.enum(['RUNNING', 'COMPLETED', 'FAILED'])
 
 export const CreateSpanSchema = z.object({
   traceId: z.string(),

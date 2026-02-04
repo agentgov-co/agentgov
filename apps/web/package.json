@@ -43,7 +43,8 @@
     "rehype-sanitize": "^6.0.0",
     "remark-gfm": "^4.0.1",
     "sonner": "^1.7.0",
-    "tailwind-merge": "^3.4.0"
+    "tailwind-merge": "^3.4.0",
+    "@agentgov/shared": "workspace:*"
   },
   "devDependencies": {
     "@agentgov/eslint-config": "workspace:*",
