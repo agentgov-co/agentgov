@@ -59,7 +59,8 @@ test.describe('Navigation', () => {
       await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible()
     })
 
-    test('should have tab navigation', async ({ page }) => {
+    test('should have tab navigation', async ({ page, isMobile }) => {
+      test.skip(!!isMobile, 'Tab navigation is hidden on mobile viewports')
       await page.goto('/dashboard')
 
       // Dashboard uses horizontal tab navigation (not sidebar)
