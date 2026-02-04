@@ -127,7 +127,8 @@ test.describe('Projects', () => {
       await expect(page.getByText('agv_test_api_key_123')).toBeVisible()
     })
 
-    test('should copy API key to clipboard', async ({ page, context }) => {
+    test('should copy API key to clipboard', async ({ page, context, browserName }) => {
+      test.skip(browserName !== 'chromium', 'Clipboard API permissions only supported in Chromium')
       await context.grantPermissions(['clipboard-read', 'clipboard-write'])
 
       const newProject = {
