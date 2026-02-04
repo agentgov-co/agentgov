@@ -21,11 +21,23 @@ setup('authenticate', async ({ page }) => {
   // Verify redirect to dashboard — proves the session is valid.
   // If this fails, the seed likely hasn't run (user doesn't exist).
   await expect(page, {
-    message: `Login failed for ${email}. Ensure the database is seeded: pnpm --filter @agentgov/api exec prisma db seed`,
+    message: `Login failed for ${email}. Ensure the database is seeded: pnpm --filter @agentgov/api db:seed`,
   }).toHaveURL(/\/dashboard/, { timeout: 15000 })
 
-  // Double-check: verify a dashboard element is visible
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 5000 })
+
+  // Select organization — required for projects/traces to load.
+  // The org switcher shows "Select Organization" when no org is active.
+  const orgButton = page.getByRole('button', { name: /Select Organization/i })
+  if (await orgButton.isVisible({ timeout: 3000 })) {
+    await orgButton.click()
+    await page.getByRole('menuitem', { name: 'Dev Organization' }).click()
+
+    // Org switcher calls window.location.reload() after setting active org.
+    // Wait for reload to complete and dashboard to re-render.
+    await page.waitForLoadState('load')
+    await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 10000 })
+  }
 
   // Persist authenticated state for all dependent projects
   await page.context().storageState({ path: AUTH_FILE })

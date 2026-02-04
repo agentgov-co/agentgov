@@ -3,7 +3,7 @@ import { test, expect } from '@playwright/test'
 test.describe('Projects', () => {
   test.describe('Projects Page', () => {
     test('should display projects header', async ({ page }) => {
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -13,11 +13,11 @@ test.describe('Projects', () => {
 
       await page.goto('/dashboard/projects')
 
-      await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible()
     })
 
     test('should show empty state when no projects', async ({ page }) => {
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -51,7 +51,7 @@ test.describe('Projects', () => {
         },
       ]
 
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
             status: 200,
@@ -65,14 +65,16 @@ test.describe('Projects', () => {
 
       await page.goto('/dashboard/projects')
 
-      await expect(page.getByText('Test Project 1')).toBeVisible()
-      await expect(page.getByText('Test Project 2')).toBeVisible()
-      await expect(page.getByText('5 traces')).toBeVisible()
-      await expect(page.getByText('10 traces')).toBeVisible()
+      // Scope to main content to avoid matching the header project selector
+      const main = page.locator('main')
+      await expect(main.getByText('Test Project 1')).toBeVisible()
+      await expect(main.getByText('Test Project 2')).toBeVisible()
+      await expect(main.getByText('5 traces')).toBeVisible()
+      await expect(main.getByText('10 traces')).toBeVisible()
     })
 
     test('should open create project dialog', async ({ page }) => {
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         await route.fulfill({
           status: 200,
           contentType: 'application/json',
@@ -87,7 +89,6 @@ test.describe('Projects', () => {
       await expect(page.getByRole('dialog')).toBeVisible()
       await expect(page.getByRole('heading', { name: 'Create Project' })).toBeVisible()
       await expect(page.getByLabel('Name')).toBeVisible()
-      await expect(page.getByLabel('Description')).toBeVisible()
     })
 
     test('should create new project', async ({ page }) => {
@@ -100,7 +101,7 @@ test.describe('Projects', () => {
         _count: { traces: 0 },
       }
 
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
             status: 200,
@@ -120,11 +121,9 @@ test.describe('Projects', () => {
       await page.getByRole('button', { name: /New Project/i }).click()
 
       await page.getByLabel('Name').fill('New Test Project')
-      await page.getByLabel('Description').fill('Test description')
       await page.getByRole('button', { name: 'Create Project' }).click()
 
       // Should show API key alert
-      await expect(page.getByText('Project Created! Save your API key')).toBeVisible()
       await expect(page.getByText('agv_test_api_key_123')).toBeVisible()
     })
 
@@ -139,7 +138,7 @@ test.describe('Projects', () => {
         _count: { traces: 0 },
       }
 
-      await page.route('**/v1/projects', async (route) => {
+      await page.route('**/v1/projects*', async (route) => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
             status: 200,

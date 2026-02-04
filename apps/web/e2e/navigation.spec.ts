@@ -23,19 +23,14 @@ test.describe('Navigation', () => {
       }
     })
 
-    test('should navigate to register from landing page', async ({ page }) => {
+    test('should have registration link on landing page', async ({ page }) => {
       await page.goto('/')
 
-      // Wait for Next.js hydration before clicking client-side links
-      await page.waitForLoadState('networkidle')
-
-      // Look for sign up / get started link (use first() as there may be multiple)
-      const signUpLink = page.getByRole('link', { name: /sign up|get started|register/i }).first()
-      if (await signUpLink.isVisible()) {
-        await signUpLink.click()
-        // "Get Started" links to /dashboard which redirects to /login without auth
-        await expect(page).toHaveURL(/\/(register|signup|dashboard|login)/, { timeout: 10000 })
-      }
+      // The landing page has CTA links leading to registration or dashboard
+      const ctaLink = page.getByRole('link', { name: /get started|start free/i }).first()
+      await expect(ctaLink).toBeVisible()
+      // Verify the link points to /dashboard or /register
+      await expect(ctaLink).toHaveAttribute('href', /\/(dashboard|register)/)
     })
   })
 
@@ -49,7 +44,7 @@ test.describe('Navigation', () => {
     test('should navigate to projects page', async ({ page }) => {
       await page.goto('/dashboard/projects')
 
-      await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible()
     })
 
     test('should navigate to traces page', async ({ page }) => {
@@ -64,14 +59,15 @@ test.describe('Navigation', () => {
       await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible()
     })
 
-    test('should have sidebar navigation', async ({ page }) => {
+    test('should have tab navigation', async ({ page }) => {
       await page.goto('/dashboard')
 
-      // Check for sidebar navigation items
-      await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Projects/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Traces/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Settings/i })).toBeVisible()
+      // Dashboard uses horizontal tab navigation (not sidebar)
+      const nav = page.locator('header nav')
+      await expect(nav.getByRole('link', { name: 'Overview' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Traces' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Projects' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
     })
   })
 

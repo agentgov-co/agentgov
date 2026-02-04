@@ -19,74 +19,48 @@ test.describe('Settings', () => {
     test('should display user profile information', async ({ page }) => {
       await page.goto('/dashboard/settings')
 
-      // Should show the seeded user email
-      await expect(page.getByText('dev@dev.com')).toBeVisible()
+      // Email is in a disabled input field on the General tab
+      await expect(page.locator('input#email')).toHaveValue('dev@dev.com')
     })
   })
 
   test.describe('API Keys Section', () => {
-    test('should display API key input', async ({ page }) => {
-      await page.addInitScript(() => {
-        window.localStorage.setItem('agentgov:selectedProject', 'project-1')
-      })
-
+    test('should navigate to API Keys tab', async ({ page }) => {
       await page.goto('/dashboard/settings')
 
-      // Look for API key related elements
-      const apiKeySection = page.getByText(/API Key/i)
-      await expect(apiKeySection).toBeVisible()
+      // Click the API Keys tab
+      const apiKeysTab = page.getByRole('tab', { name: /API Keys/i })
+      await expect(apiKeysTab).toBeVisible()
+      await apiKeysTab.click()
+
+      // Verify tab content is displayed
+      await expect(page.getByRole('tabpanel')).toBeVisible()
     })
+  })
 
-    test('should be able to set admin API key', async ({ page }) => {
-      await page.addInitScript(() => {
-        window.localStorage.setItem('agentgov:selectedProject', 'project-1')
-      })
-
+  test.describe('Security Section', () => {
+    test('should navigate to Security tab', async ({ page }) => {
       await page.goto('/dashboard/settings')
 
-      // Find API key input
-      const apiKeyInput = page.getByPlaceholder(/Enter.*API key/i).first()
-      if (await apiKeyInput.isVisible()) {
-        await apiKeyInput.fill('agv_test_key_123')
+      // Click the Security tab
+      const securityTab = page.getByRole('tab', { name: /Security/i })
+      await expect(securityTab).toBeVisible()
+      await securityTab.click()
 
-        // Look for save button
-        const saveButton = page.getByRole('button', { name: /Save|Set|Apply/i }).first()
-        if (await saveButton.isVisible()) {
-          await saveButton.click()
-        }
-      }
+      // Verify tab content is displayed
+      await expect(page.getByRole('tabpanel')).toBeVisible()
     })
   })
 
   test.describe('Account Settings', () => {
-    test('should have sign out option', async ({ page }) => {
+    test('should have sign out option in user menu', async ({ page }) => {
       await page.goto('/dashboard/settings')
 
-      // Look for sign out button
-      const signOutButton = page.getByRole('button', { name: /Sign out|Log out/i })
-      await expect(signOutButton).toBeVisible()
-    })
+      // Sign out is in the header user dropdown, not on the settings page
+      const userMenuButton = page.locator('header').getByRole('button').last()
+      await userMenuButton.click()
 
-    test('should have two-factor authentication option', async ({ page }) => {
-      await page.goto('/dashboard/settings')
-
-      // Look for 2FA option
-      const twoFactorText = page.getByText(/Two-Factor|2FA/i)
-      if (await twoFactorText.isVisible()) {
-        await expect(twoFactorText).toBeVisible()
-      }
-    })
-  })
-
-  test.describe('Danger Zone', () => {
-    test('should have delete account option', async ({ page }) => {
-      await page.goto('/dashboard/settings')
-
-      // Look for danger zone or delete account
-      const dangerZone = page.getByText(/Danger Zone|Delete Account/i)
-      if (await dangerZone.isVisible()) {
-        await expect(dangerZone).toBeVisible()
-      }
+      await expect(page.getByText('Sign out')).toBeVisible()
     })
   })
 })
