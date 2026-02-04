@@ -57,6 +57,8 @@ const sentryWebpackPluginOptions = {
   // Disable source map upload in development
   disableServerWebpackPlugin: process.env.NODE_ENV !== "production",
   disableClientWebpackPlugin: process.env.NODE_ENV !== "production",
+  // Tree-shake Sentry debug logger code from production bundle
+  disableLogger: true,
 };
 
 export default withSentryConfig(withBundleAnalyzer(nextConfig), sentryWebpackPluginOptions);

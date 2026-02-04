@@ -1,11 +1,9 @@
 import type { Metadata } from "next";
-import { headers } from "next/headers";
 import { Inter } from "next/font/google";
 import { Analytics } from "@vercel/analytics/react";
 import { SpeedInsights } from "@vercel/speed-insights/next";
 import "./globals.css";
 import { Providers } from "./providers";
-import { HydrationFix } from "@/components/hydration-fix";
 import {
   OrganizationJsonLd,
   SoftwareApplicationJsonLd,
@@ -14,7 +12,7 @@ import {
 } from "@/components/structured-data";
 import { SkipLink } from "@/components/skip-link";
 
-const inter = Inter({ subsets: ["latin"] });
+const inter = Inter({ subsets: ["latin"], display: "swap" });
 
 const SITE_URL = process.env.NEXT_PUBLIC_SITE_URL ?? "https://agentgov.co";
 
@@ -81,13 +79,11 @@ export const metadata: Metadata = {
   },
 };
 
-export default async function RootLayout({
+export default function RootLayout({
   children,
 }: {
   children: React.ReactNode;
-}): Promise<React.JSX.Element> {
-  const nonce = (await headers()).get("x-nonce") ?? undefined;
-
+}): React.JSX.Element {
   return (
     <html lang="en" suppressHydrationWarning>
       <head>
@@ -98,7 +94,6 @@ export default async function RootLayout({
       </head>
       <body className={inter.className} suppressHydrationWarning>
         <SkipLink />
-        <HydrationFix nonce={nonce} />
         <Providers>{children}</Providers>
         <Analytics />
         <SpeedInsights />

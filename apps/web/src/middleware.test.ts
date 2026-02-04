@@ -1,6 +1,6 @@
 import { describe, it, expect, vi, beforeEach } from 'vitest'
 import { NextRequest } from 'next/server'
-import { middleware, buildCsp } from './middleware'
+import { middleware, buildCsp, config } from './middleware'
 
 // Mock crypto.randomUUID for deterministic tests
 const MOCK_UUID = '550e8400-e29b-41d4-a716-446655440000'
@@ -152,5 +152,76 @@ describe('Middleware: auth redirects', () => {
 
     expect(response.status).toBe(200)
     expect(response.headers.get('Content-Security-Policy')).toBeTruthy()
+  })
+})
+
+describe('Middleware: matcher config', () => {
+  // Next.js matcher pattern: '/((?!exclusions).*)'
+  // Converts to a regex that matches paths NOT starting with excluded prefixes.
+  // We reconstruct the full regex to test it the same way Next.js does.
+  const matcherPattern = config.matcher[0]
+  const fullRegex = new RegExp(`^${matcherPattern}$`)
+
+  function shouldRunMiddleware(path: string): boolean {
+    return fullRegex.test(path)
+  }
+
+  it('should exclude _next/static assets', () => {
+    expect(shouldRunMiddleware('/_next/static/chunks/main.js')).toBe(false)
+  })
+
+  it('should exclude _next/image requests', () => {
+    expect(shouldRunMiddleware('/_next/image')).toBe(false)
+  })
+
+  it('should exclude favicon.ico', () => {
+    expect(shouldRunMiddleware('/favicon.ico')).toBe(false)
+  })
+
+  it('should exclude icon route', () => {
+    expect(shouldRunMiddleware('/icon')).toBe(false)
+  })
+
+  it('should exclude apple-icon route', () => {
+    expect(shouldRunMiddleware('/apple-icon')).toBe(false)
+  })
+
+  it('should exclude opengraph-image route', () => {
+    expect(shouldRunMiddleware('/opengraph-image')).toBe(false)
+  })
+
+  it('should exclude robots.txt', () => {
+    expect(shouldRunMiddleware('/robots.txt')).toBe(false)
+  })
+
+  it('should exclude sitemap.xml', () => {
+    expect(shouldRunMiddleware('/sitemap.xml')).toBe(false)
+  })
+
+  it('should exclude .svg files', () => {
+    expect(shouldRunMiddleware('/logo.svg')).toBe(false)
+  })
+
+  it('should exclude .png files', () => {
+    expect(shouldRunMiddleware('/image.png')).toBe(false)
+  })
+
+  it('should exclude .jpg files', () => {
+    expect(shouldRunMiddleware('/photo.jpg')).toBe(false)
+  })
+
+  it('should exclude .webp files', () => {
+    expect(shouldRunMiddleware('/hero.webp')).toBe(false)
+  })
+
+  it('should exclude .ico files', () => {
+    expect(shouldRunMiddleware('/custom.ico')).toBe(false)
+  })
+
+  it('should NOT exclude regular page routes', () => {
+    expect(shouldRunMiddleware('/')).toBe(true)
+    expect(shouldRunMiddleware('/dashboard')).toBe(true)
+    expect(shouldRunMiddleware('/login')).toBe(true)
+    expect(shouldRunMiddleware('/api/auth/session')).toBe(true)
   })
 })

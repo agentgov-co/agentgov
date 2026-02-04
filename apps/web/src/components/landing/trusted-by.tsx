@@ -12,15 +12,34 @@ interface TrustedByProps {
   title?: string;
 }
 
-export function TrustedBy({ logos, title = "Trusted by" }: TrustedByProps): React.JSX.Element {
+export function TrustedBy({
+  logos,
+  title = "Trusted by",
+}: TrustedByProps): React.JSX.Element {
   const shouldScroll = logos.length > 5;
   const [isHovered, setIsHovered] = useState(false);
   const scrollRef = useRef<HTMLDivElement>(null);
   const scrollPositionRef = useRef(0);
 
+  const [isVisible, setIsVisible] = useState(false);
+  const containerRef = useRef<HTMLDivElement>(null);
+
+  // Observe visibility to only animate when in viewport
+  useEffect(() => {
+    const el = containerRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
+
   // Auto-scroll effect for more than 5 logos
   useEffect(() => {
-    if (!shouldScroll || isHovered) return;
+    if (!shouldScroll || isHovered || !isVisible) return;
 
     const scrollContainer = scrollRef.current;
     if (!scrollContainer) return;
@@ -43,7 +62,7 @@ export function TrustedBy({ logos, title = "Trusted by" }: TrustedByProps): Reac
 
     animationId = requestAnimationFrame(scroll);
     return () => cancelAnimationFrame(animationId);
-  }, [shouldScroll, isHovered]);
+  }, [shouldScroll, isHovered, isVisible]);
 
   // Static grid for 5 or fewer logos
   if (!shouldScroll) {
@@ -78,7 +97,7 @@ export function TrustedBy({ logos, title = "Trusted by" }: TrustedByProps): Reac
   const duplicatedLogos = [...logos, ...logos]; // Duplicate for seamless loop
 
   return (
-    <div>
+    <div ref={containerRef}>
       <div className="px-6 py-4 border-b border-black/10">
         <span className="text-xs text-black/40 uppercase tracking-wider">
           {title}
@@ -94,7 +113,7 @@ export function TrustedBy({ logos, title = "Trusted by" }: TrustedByProps): Reac
           {duplicatedLogos.map((logo, i) => (
             <div
               key={`${logo.name}-${i}`}
-              className="flex-shrink-0 flex items-center justify-center h-20 md:h-24 w-[200px] md:w-[250px] border-r border-black/10"
+              className="shrink-0 flex items-center justify-center h-20 md:h-24 w-50 md:w-62.5 border-r border-black/10"
             >
               <span className="text-lg md:text-xl font-medium text-black/30">
                 {logo.text}
