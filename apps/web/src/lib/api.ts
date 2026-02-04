@@ -1,3 +1,7 @@
+import type { TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
+
+export type { TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 type FetchOptions = {
@@ -112,8 +116,6 @@ export const projectsApi = {
 // Traces API
 // ============================================
 
-export type TraceStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
-
 export interface Trace {
   id: string
   projectId: string
@@ -175,16 +177,6 @@ export const tracesApi = {
 // ============================================
 // Spans API
 // ============================================
-
-export type SpanType =
-  | 'LLM_CALL'
-  | 'TOOL_CALL'
-  | 'AGENT_STEP'
-  | 'RETRIEVAL'
-  | 'EMBEDDING'
-  | 'CUSTOM'
-
-export type SpanStatus = 'RUNNING' | 'COMPLETED' | 'FAILED'
 
 export interface Span {
   id: string
