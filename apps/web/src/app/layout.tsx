@@ -12,6 +12,7 @@ import {
   FAQPageJsonLd,
   WebSiteJsonLd,
 } from "@/components/structured-data";
+import { SkipLink } from "@/components/skip-link";
 
 const inter = Inter({ subsets: ["latin"] });
 
@@ -96,6 +97,7 @@ export default async function RootLayout({
         <WebSiteJsonLd />
       </head>
       <body className={inter.className} suppressHydrationWarning>
+        <SkipLink />
         <HydrationFix nonce={nonce} />
         <Providers>{children}</Providers>
         <Analytics />

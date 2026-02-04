@@ -219,10 +219,19 @@ function ProjectCard({ project }: { project: Project }): React.JSX.Element {
 
   return (
     <div
+      role="button"
+      tabIndex={0}
       className={`bg-white rounded-lg border p-5 hover:shadow-sm transition-all cursor-pointer ${
         isSelected ? 'border-primary ring-1 ring-primary' : 'border-black/10'
       }`}
       onClick={() => setSelectedProjectId(project.id)}
+      onKeyDown={(e) => {
+        if (e.key === 'Enter' || e.key === ' ') {
+          e.preventDefault();
+          setSelectedProjectId(project.id);
+        }
+      }}
+      aria-pressed={isSelected}
     >
       <div className="flex items-start justify-between mb-3">
         <div className="min-w-0 flex-1">

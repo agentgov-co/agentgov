@@ -185,6 +185,7 @@ await fastify.register(authPlugin)
 // Must be registered after auth plugin so request.user and request.organization are populated
 const EXEMPT_2FA_PATHS = ['/api/auth', '/health', '/docs', '/metrics']
 fastify.addHook('onRequest', async (request, reply) => {
+  if (process.env.NODE_ENV !== 'production') return
   if (EXEMPT_2FA_PATHS.some(p => request.url.startsWith(p))) {
     return
   }

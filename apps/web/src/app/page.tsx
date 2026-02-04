@@ -478,7 +478,7 @@ function TimelineMockup(): React.JSX.Element {
 
 export default function Home(): React.JSX.Element {
   return (
-    <main className="min-h-screen bg-white">
+    <main id="main-content" tabIndex={-1} className="min-h-screen bg-white">
       {/* Navigation (includes beta banner) */}
       <HeaderNav />
 
