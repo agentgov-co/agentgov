@@ -13,6 +13,10 @@ const protectedRoutes = ['/dashboard']
 // Routes that should redirect to dashboard if already authenticated
 const authRoutes = ['/login', '/register']
 
+// SSR routes that need nonce-based CSP (HTML is rendered per-request with nonce).
+// All other routes use the default static CSP set in next.config.ts headers().
+const ssrRoutes = ['/dashboard']
+
 export function buildCsp(nonce: string): string {
   const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
@@ -33,7 +37,6 @@ export function buildCsp(nonce: string): string {
 }
 
 export function middleware(request: NextRequest): NextResponse {
-  const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
   const { pathname } = request.nextUrl
   const sessionCookie = SESSION_COOKIE_NAMES
     .map(name => request.cookies.get(name)?.value)
@@ -55,17 +58,24 @@ export function middleware(request: NextRequest): NextResponse {
     return NextResponse.redirect(new URL('/dashboard', request.url))
   }
 
-  // Set CSP header and pass nonce to server components
-  const requestHeaders = new Headers(request.headers)
-  requestHeaders.set('x-nonce', nonce)
+  // Only SSR routes get nonce-based CSP (overwrites the default static CSP
+  // from next.config.ts). Static pages keep the config-level CSP as-is.
+  const needsNonce = ssrRoutes.some(route => pathname.startsWith(route))
 
-  const response = NextResponse.next({
-    request: { headers: requestHeaders },
-  })
+  if (needsNonce) {
+    const nonce = Buffer.from(crypto.randomUUID()).toString('base64')
+    const requestHeaders = new Headers(request.headers)
+    requestHeaders.set('x-nonce', nonce)
 
-  response.headers.set('Content-Security-Policy', buildCsp(nonce))
+    const response = NextResponse.next({
+      request: { headers: requestHeaders },
+    })
 
-  return response
+    response.headers.set('Content-Security-Policy', buildCsp(nonce))
+    return response
+  }
+
+  return NextResponse.next()
 }
 
 export const config = {
