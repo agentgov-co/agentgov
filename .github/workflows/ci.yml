@@ -150,7 +150,7 @@ jobs:
         run: pnpm --filter @agentgov/api exec prisma migrate deploy
 
       - name: Seed database
-        run: pnpm --filter @agentgov/api exec prisma db seed
+        run: pnpm --filter @agentgov/api db:seed
 
       - name: Install Playwright browsers (chromium only on PRs)
         if: github.event_name == 'pull_request'
