@@ -1,43 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-// Skip in CI - dashboard tests require real auth session
-// better-auth client doesn't work with page.route() mocking
-const isCI = !!process.env.CI
-
 test.describe('Projects', () => {
-  test.skip(isCI, 'Dashboard tests require real auth session')
-  test.beforeEach(async ({ page, context }) => {
-    // Set session cookie to bypass middleware auth check
-    await context.addCookies([
-      {
-        name: 'agentgov.session_token',
-        value: 'test-session-token',
-        domain: 'localhost',
-        path: '/',
-      },
-    ])
-
-    // Mock API responses for projects
-    await page.route('**/api/auth/get-session', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          session: {
-            id: 'test-session-id',
-            userId: 'test-user-id',
-            expiresAt: new Date(Date.now() + 86400000).toISOString(),
-          },
-          user: {
-            id: 'test-user-id',
-            name: 'Test User',
-            email: 'test@example.com',
-          },
-        }),
-      })
-    })
-  })
-
   test.describe('Projects Page', () => {
     test('should display projects header', async ({ page }) => {
       await page.route('**/v1/projects', async (route) => {

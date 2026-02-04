@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-// Skip dashboard tests in CI - they require real auth session
-// better-auth client doesn't work with page.route() mocking
-const isCI = !!process.env.CI
-
 test.describe('Navigation', () => {
   test.describe('Public pages', () => {
+    // Public pages should not carry auth cookies — visiting /login or
+    // /register with a session cookie causes a redirect to /dashboard.
+    test.use({ storageState: { cookies: [], origins: [] } })
+
     test('should load landing page', async ({ page }) => {
       await page.goto('/')
 
@@ -40,59 +40,6 @@ test.describe('Navigation', () => {
   })
 
   test.describe('Dashboard navigation', () => {
-    // Skip in CI - requires real auth session
-    test.skip(isCI, 'Dashboard tests require real auth session')
-
-    test.beforeEach(async ({ page, context }) => {
-      // Set session cookie to bypass middleware auth check
-      await context.addCookies([
-        {
-          name: 'agentgov.session_token',
-          value: 'test-session-token',
-          domain: 'localhost',
-          path: '/',
-        },
-      ])
-
-      // Mock auth session
-      await page.route('**/api/auth/get-session', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            session: {
-              id: 'test-session-id',
-              userId: 'test-user-id',
-              expiresAt: new Date(Date.now() + 86400000).toISOString(),
-            },
-            user: {
-              id: 'test-user-id',
-              name: 'Test User',
-              email: 'test@example.com',
-            },
-          }),
-        })
-      })
-
-      // Mock projects
-      await page.route('**/v1/projects', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([]),
-        })
-      })
-
-      // Mock traces
-      await page.route('**/v1/traces*', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([]),
-        })
-      })
-    })
-
     test('should navigate to dashboard', async ({ page }) => {
       await page.goto('/dashboard')
 
@@ -129,6 +76,9 @@ test.describe('Navigation', () => {
   })
 
   test.describe('Responsive design', () => {
+    // Landing page is public — no auth needed
+    test.use({ storageState: { cookies: [], origins: [] } })
+
     test('should be responsive on mobile', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 })
 

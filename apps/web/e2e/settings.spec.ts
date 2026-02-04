@@ -1,59 +1,6 @@
 import { test, expect } from '@playwright/test'
 
-// Skip in CI - dashboard tests require real auth session
-// better-auth client doesn't work with page.route() mocking
-const isCI = !!process.env.CI
-
 test.describe('Settings', () => {
-  test.skip(isCI, 'Dashboard tests require real auth session')
-  test.beforeEach(async ({ page, context }) => {
-    // Set session cookie to bypass middleware auth check
-    await context.addCookies([
-      {
-        name: 'agentgov.session_token',
-        value: 'test-session-token',
-        domain: 'localhost',
-        path: '/',
-      },
-    ])
-
-    // Mock auth session
-    await page.route('**/api/auth/get-session', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify({
-          session: {
-            id: 'test-session-id',
-            userId: 'test-user-id',
-            expiresAt: new Date(Date.now() + 86400000).toISOString(),
-          },
-          user: {
-            id: 'test-user-id',
-            name: 'Test User',
-            email: 'test@example.com',
-          },
-        }),
-      })
-    })
-
-    // Mock projects
-    await page.route('**/v1/projects', async (route) => {
-      await route.fulfill({
-        status: 200,
-        contentType: 'application/json',
-        body: JSON.stringify([
-          {
-            id: 'project-1',
-            name: 'Test Project',
-            createdAt: new Date().toISOString(),
-            _count: { traces: 5 },
-          },
-        ]),
-      })
-    })
-  })
-
   test.describe('Settings Page', () => {
     test('should display settings page', async ({ page }) => {
       await page.goto('/dashboard/settings')
@@ -72,8 +19,8 @@ test.describe('Settings', () => {
     test('should display user profile information', async ({ page }) => {
       await page.goto('/dashboard/settings')
 
-      // Should show user email or name somewhere
-      await expect(page.getByText('test@example.com')).toBeVisible()
+      // Should show the seeded user email
+      await expect(page.getByText('dev@dev.com')).toBeVisible()
     })
   })
 
