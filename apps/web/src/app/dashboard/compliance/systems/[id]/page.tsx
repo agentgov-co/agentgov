@@ -133,7 +133,7 @@ export default function SystemDetailPage(): React.JSX.Element {
       <div className="bg-white border-b border-black/10 px-6 py-4">
         <div className="flex items-start justify-between">
           <div className="flex items-start gap-4">
-            <Button variant="ghost" size="icon" className="h-8 w-8 mt-1" asChild>
+            <Button variant="ghost" size="icon" className="h-8 w-8 mt-1" aria-label="Back to compliance" asChild>
               <Link href="/dashboard/compliance">
                 <ChevronLeft className="h-5 w-5" />
               </Link>
@@ -1023,6 +1023,7 @@ function OversightTab({ system }: { system: NonNullable<ReturnType<typeof useCom
                   variant="ghost"
                   className="text-red-600 hover:text-red-700 hover:bg-red-50"
                   onClick={() => handleRemovePerson(index)}
+                  aria-label={`Remove ${person.name}`}
                 >
                   <XCircle className="h-4 w-4" />
                 </Button>

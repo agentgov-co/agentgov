@@ -20,7 +20,7 @@ export default function AuthLayout({ children }: { children: ReactNode }): React
       </header>
 
       {/* Content */}
-      <main className="flex-1 flex items-center justify-center p-6">
+      <main id="main-content" tabIndex={-1} className="flex-1 flex items-center justify-center p-6">
         <div className="w-full max-w-md">
           <AuthErrorBoundary>
             {children}
