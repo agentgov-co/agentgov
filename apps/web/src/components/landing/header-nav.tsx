@@ -7,7 +7,7 @@ import { useAuth } from "@/lib/auth-provider";
 import { Logo } from "@/components/logo";
 
 export function HeaderNav(): React.JSX.Element {
-  const { isAuthenticated, isLoading } = useAuth();
+  const { isAuthenticated } = useAuth();
   const [bannerDismissed, setBannerDismissed] = useState(false);
 
   return (
@@ -82,17 +82,19 @@ export function HeaderNav(): React.JSX.Element {
           </div>
 
           <div className="flex items-center gap-2 sm:gap-4">
-            {!isLoading && !isAuthenticated && (
-              <Link
-                href="/login"
-                className="hidden sm:block text-sm text-black/60 hover:text-black transition-colors"
-              >
-                Log in
-              </Link>
-            )}
             <Link
-              href="/dashboard"
-              className="px-3 sm:px-4 py-2 bg-[#7C3AED] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED]/90 transition-colors"
+              href="/login"
+              className={`hidden sm:block text-sm text-black/60 hover:text-black transition-colors ${
+                isAuthenticated ? "invisible" : ""
+              }`}
+              tabIndex={isAuthenticated ? -1 : undefined}
+              aria-hidden={isAuthenticated || undefined}
+            >
+              Log in
+            </Link>
+            <Link
+              href={isAuthenticated ? "/dashboard" : "/register"}
+              className="min-w-[100px] text-center px-3 sm:px-4 py-2 bg-[#7C3AED] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED]/90 transition-colors"
             >
               {isAuthenticated ? "Dashboard" : "Get Started"}
             </Link>

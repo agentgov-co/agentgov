@@ -13,19 +13,25 @@ if (SENTRY_DSN) {
     // Performance Monitoring
     tracesSampleRate: IS_PRODUCTION ? 0.1 : 0,
 
-    // Session Replay - only on errors in dev, sampled in production
+    // Session Replay — rates are set here, integration is lazy-loaded below
     replaysSessionSampleRate: IS_PRODUCTION ? 0.1 : 0,
     replaysOnErrorSampleRate: 1.0,
 
-    integrations: [
-      Sentry.replayIntegration({
-        maskAllText: true,
-        blockAllMedia: true,
-      }),
-    ],
-
     // Don't send PII
     sendDefaultPii: false,
+  })
+
+  // Lazy load replay integration from Sentry CDN to avoid ~70KB in initial bundle.
+  // lazyLoadIntegration() loads the integration asynchronously from CDN,
+  // which may fail if user has an ad-blocker or network issue — handled gracefully.
+  Sentry.lazyLoadIntegration('replayIntegration').then((replayIntegration) => {
+    Sentry.addIntegration(replayIntegration({
+      maskAllText: true,
+      blockAllMedia: true,
+    }))
+  }).catch(() => {
+    // Silently fail — replay is non-critical.
+    // Common cause: ad-blockers blocking Sentry CDN requests.
   })
 
   console.warn(`[Sentry] Client initialized - release: ${RELEASE}`)
