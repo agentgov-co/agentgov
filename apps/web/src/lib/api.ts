@@ -58,7 +58,8 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
     method,
     credentials: 'include', // Send cookies for session auth
     headers: {
-      'Content-Type': 'application/json',
+      // Only set Content-Type when there's a body (DELETE without body fails otherwise)
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...headers
     },
     body: body ? JSON.stringify(body) : undefined

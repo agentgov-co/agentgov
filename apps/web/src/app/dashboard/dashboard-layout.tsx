@@ -21,6 +21,7 @@ import { HydrationFix } from "@/components/hydration-fix";
 import { OrganizationSwitcher } from "@/components/organization-switcher";
 import { UsageWarning } from "@/components/usage-warning";
 import { FeedbackWidget } from "@/components/feedback-widget";
+import { OnboardingModal } from "@/components/onboarding";
 import {
   Sheet,
   SheetContent,
@@ -432,6 +433,9 @@ export function DashboardLayoutClient({
 
         {/* Feedback Widget */}
         <FeedbackWidget />
+
+        {/* Onboarding Modal */}
+        <OnboardingModal />
       </div>
     </SelectedProjectContext.Provider>
   );

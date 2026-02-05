@@ -8,7 +8,7 @@ export type { MemberRole, InvitationStatus, TraceStatus, SpanType, SpanStatus } 
 // Member & Invitation Enums
 // ============================================
 
-export const MemberRoleSchema: z.ZodEnum<[MemberRole, ...MemberRole[]]> = z.enum(['OWNER', 'ADMIN', 'MEMBER'])
+export const MemberRoleSchema: z.ZodEnum<[MemberRole, ...MemberRole[]]> = z.enum(['owner', 'admin', 'member'])
 
 export const InvitationStatusSchema: z.ZodEnum<[InvitationStatus, ...InvitationStatus[]]> = z.enum(['PENDING', 'ACCEPTED', 'REJECTED', 'EXPIRED'])
 

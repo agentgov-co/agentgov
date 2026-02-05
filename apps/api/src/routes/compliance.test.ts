@@ -12,7 +12,7 @@ const mockOversightConfigs: Map<string, Record<string, unknown>> = new Map()
 
 // Mock user and organization for session auth
 const MOCK_USER = { id: 'user_123', email: 'test@example.com', name: 'Test User' }
-const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'OWNER' }
+const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'owner' }
 
 // Helper to create mock project
 function createMockProject(): { id: string; name: string; organizationId: string; createdAt: Date; updatedAt: Date } {

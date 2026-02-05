@@ -130,7 +130,7 @@ model Organization {
 
 model Member {
   id             String       @id @default(cuid())
-  role           MemberRole   @default(MEMBER)
+  role           MemberRole   @default(member)
 
   organizationId String       @map("organization_id")
   organization   Organization @relation(fields: [organizationId], references: [id], onDelete: Cascade)
@@ -149,7 +149,7 @@ model Member {
 model Invitation {
   id             String           @id @default(cuid())
   email          String
-  role           MemberRole       @default(MEMBER)
+  role           MemberRole       @default(member)
   status         InvitationStatus @default(PENDING)
   expiresAt      DateTime     @map("expires_at")
 
@@ -411,9 +411,9 @@ enum SpanStatus {
 // ============================================
 
 enum MemberRole {
-  OWNER
-  ADMIN
-  MEMBER
+  owner
+  admin
+  member
 }
 
 enum InvitationStatus {

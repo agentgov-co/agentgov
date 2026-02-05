@@ -55,7 +55,7 @@ await setupRateLimit(fastify)
 // Auth plugin (Better Auth)
 await fastify.register(authPlugin)
 
-// 2FA enforcement for privileged roles (OWNER/ADMIN)
+// 2FA enforcement for privileged roles (owner/admin)
 // Must be registered after auth plugin so request.user and request.organization are populated
 const EXEMPT_2FA_PATHS = ['/api/auth', '/health', '/docs', '/metrics']
 fastify.addHook('onRequest', async (request, reply) => {
