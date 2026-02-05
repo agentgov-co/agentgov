@@ -7,6 +7,12 @@ setup('authenticate', async ({ page }) => {
   const email = process.env.E2E_TEST_EMAIL ?? 'dev@dev.com'
   const password = process.env.E2E_TEST_PASSWORD ?? 'dev123'
 
+  // Skip onboarding in e2e tests - set flag before login
+  await page.goto('/')
+  await page.evaluate(() => {
+    localStorage.setItem('agentgov_onboarding_skipped', 'true')
+  })
+
   // Navigate to login — if this redirects unexpectedly, the seed may not have run
   await page.goto('/login')
   await expect(page.getByRole('heading', { name: 'Welcome back' }), {
@@ -23,6 +29,17 @@ setup('authenticate', async ({ page }) => {
   await expect(page, {
     message: `Login failed for ${email}. Ensure the database is seeded: pnpm --filter @agentgov/api db:seed`,
   }).toHaveURL(/\/dashboard/, { timeout: 15000 })
+
+  // Close onboarding modal if it appears (shows for users without active org)
+  const onboardingSkipButton = page.getByRole('button', { name: /skip for now/i })
+  const onboardingCloseButton = page.locator('[data-radix-dialog-close]')
+  if (await onboardingSkipButton.isVisible({ timeout: 2000 }).catch(() => false)) {
+    await onboardingSkipButton.click()
+    await page.waitForTimeout(500) // Wait for modal to close
+  } else if (await onboardingCloseButton.first().isVisible({ timeout: 1000 }).catch(() => false)) {
+    await onboardingCloseButton.first().click()
+    await page.waitForTimeout(500)
+  }
 
   await expect(page.getByRole('heading', { name: 'Dashboard' })).toBeVisible({ timeout: 5000 })
 
