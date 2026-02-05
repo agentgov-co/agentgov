@@ -1,6 +1,7 @@
 import type { Page } from '@playwright/test'
 
-const E2E_ORG_ID = 'org-e2e-test'
+// Must match the organization ID from the seed data
+const E2E_ORG_ID = 'org_dev_001'
 
 /**
  * Intercepts auth endpoints to ensure the active organization is loaded.
@@ -14,6 +15,11 @@ const E2E_ORG_ID = 'org-e2e-test'
  * that might match the same patterns.
  */
 export async function ensureOrgLoaded(page: Page): Promise<void> {
+  // Skip onboarding modal in e2e tests
+  await page.addInitScript(() => {
+    window.localStorage.setItem('agentgov_onboarding_skipped', 'true')
+  })
+
   // Intercept session response — patch in activeOrganizationId if missing
   await page.route('**/api/auth/get-session*', async (route) => {
     const response = await route.fetch()
@@ -43,8 +49,8 @@ export async function ensureOrgLoaded(page: Page): Promise<void> {
         contentType: 'application/json',
         body: JSON.stringify({
           id: E2E_ORG_ID,
-          name: 'E2E Test Organization',
-          slug: 'e2e-test',
+          name: 'Dev Organization',
+          slug: 'dev-org',
           members: [],
         }),
       })
