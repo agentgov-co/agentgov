@@ -119,5 +119,10 @@ export const UpdateSpanSchema = z.object({
   metadata: jsonPayloadMax.optional()
 })
 
+export const CreateSpanBatchSchema = z.object({
+  spans: z.array(CreateSpanSchema).min(1).max(100)
+})
+
 export type CreateSpan = z.infer<typeof CreateSpanSchema>
 export type UpdateSpan = z.infer<typeof UpdateSpanSchema>
+export type CreateSpanBatch = z.infer<typeof CreateSpanBatchSchema>

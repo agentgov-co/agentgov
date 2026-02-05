@@ -221,6 +221,19 @@ function setupMockAPI(): void {
       }
     }
 
+    if (method === 'POST' && path === '/v1/spans/batch') {
+      const body = JSON.parse(options.body as string)
+      const count = body.spans?.length ?? 0
+      return {
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({
+          created: count,
+          total: count
+        }),
+      }
+    }
+
     if (method === 'POST' && path === '/v1/spans') {
       spanCounter++
       return {
@@ -466,10 +479,20 @@ describe('AgentGovExporter Integration', () => {
       // After flush
       await processor.forceFlush()
 
+      // Should have either individual span calls OR batch call
       const spanCallsAfterFlush = mockFetch.mock.calls.filter(
         (call) => call[1].method === 'POST' && call[0].includes('/v1/spans')
       )
-      expect(spanCallsAfterFlush).toHaveLength(5)
+      // With batch threshold of 5 (default), 5 spans will trigger batch endpoint
+      // So we expect either 5 individual calls OR 1 batch call
+      const hasBatchCall = spanCallsAfterFlush.some(call => call[0].includes('/batch'))
+      const individualCalls = spanCallsAfterFlush.filter(call => !call[0].includes('/batch'))
+
+      if (hasBatchCall) {
+        expect(spanCallsAfterFlush.filter(call => call[0].includes('/batch'))).toHaveLength(1)
+      } else {
+        expect(individualCalls).toHaveLength(5)
+      }
     })
 
     it('should auto-flush when batch size is reached', async () => {

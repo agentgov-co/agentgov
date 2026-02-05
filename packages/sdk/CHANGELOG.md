@@ -19,6 +19,18 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   - Token and cost extraction from generation spans
   - Debug mode with detailed logging
 
+- **Idempotent Trace Creation** - Traces now support `externalId` for idempotency
+  - Duplicate requests with same `externalId` return existing trace (HTTP 200)
+  - Composite unique constraint on `(projectId, externalId)`
+  - Prevents duplicate traces from network retries or multi-instance deployments
+  - Proper migration support for existing databases
+
+- **Batch Span Endpoint** - Optimized for high-throughput scenarios (100+ spans/trace)
+  - New `POST /v1/spans/batch` endpoint accepts up to 100 spans per request
+  - `batchThreshold` config option (default: 5) - auto-batch when span count exceeds threshold
+  - Automatic fallback to individual exports on batch failure
+  - Reduces API calls by up to 20x for complex agent runs
+
 ### Usage
 
 ```typescript
@@ -29,6 +41,8 @@ setTraceProcessors([
   new BatchTraceProcessor(new AgentGovExporter({
     apiKey: process.env.AGENTGOV_API_KEY!,
     projectId: process.env.AGENTGOV_PROJECT_ID!,
+    // Optional: tune batch threshold for your workload
+    batchThreshold: 10,  // Default: 5. Set to 0 to disable batching.
   }))
 ])
 ```

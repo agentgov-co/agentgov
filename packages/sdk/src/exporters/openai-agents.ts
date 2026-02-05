@@ -55,10 +55,12 @@ export interface AgentGovExporterConfig {
   timeout?: number
   /** Callback for export errors (default: logs to console in debug mode) */
   onError?: (error: Error, context: ExportErrorContext) => void
+  /** Min spans to use batch endpoint (default: 5). Set to 0 to disable batching. */
+  batchThreshold?: number
 }
 
 export interface ExportErrorContext {
-  operation: 'createTrace' | 'createSpan' | 'updateSpan'
+  operation: 'createTrace' | 'createSpan' | 'createSpanBatch' | 'updateSpan'
   externalId: string
   itemType: 'trace' | 'span'
 }
@@ -79,10 +81,12 @@ export class AgentGovExporter implements TracingExporter {
   private readonly spanCache: LRUCache
   private readonly debug: boolean
   private readonly onError?: (error: Error, context: ExportErrorContext) => void
+  private readonly batchThreshold: number
 
   constructor(config: AgentGovExporterConfig) {
     this.debug = config.debug ?? false
     this.onError = config.onError
+    this.batchThreshold = config.batchThreshold ?? 5
 
     this.client = new FetchClient({
       baseUrl: config.baseUrl ?? 'https://api.agentgov.co',
@@ -159,7 +163,22 @@ export class AgentGovExporter implements TracingExporter {
 
     // Export spans
     const spans = items.filter((i): i is OpenAISpan => i.type === 'trace.span')
-    await Promise.all(spans.map(span => this.exportSpan(span, agTraceId, signal)))
+
+    // Filter out already exported spans
+    const newSpans = spans.filter(span => !this.spanCache.has(span.spanId))
+
+    if (newSpans.length === 0) {
+      this.log('All spans already exported, skipping')
+      return
+    }
+
+    // Use batch endpoint for multiple new spans (more efficient)
+    if (this.batchThreshold > 0 && newSpans.length >= this.batchThreshold) {
+      await this.exportSpanBatch(newSpans, agTraceId, signal)
+    } else {
+      // Export spans individually
+      await Promise.all(newSpans.map(span => this.exportSpan(span, agTraceId, signal)))
+    }
   }
 
   /**
@@ -195,6 +214,44 @@ export class AgentGovExporter implements TracingExporter {
         externalId: span.spanId,
         itemType: 'span'
       })
+    }
+  }
+
+  /**
+   * Export multiple spans using batch endpoint
+   */
+  private async exportSpanBatch(
+    spans: OpenAISpan[],
+    agTraceId: string,
+    signal?: AbortSignal
+  ): Promise<void> {
+    if (signal?.aborted) return
+
+    try {
+      const spanInputs = spans.map(span => this.mapSpanToInput(span, agTraceId))
+      const result = await this.client.createSpanBatch(spanInputs)
+
+      // Mark all spans as exported in cache
+      for (const span of spans) {
+        this.spanCache.set(span.spanId, `batch_${Date.now()}`)
+      }
+
+      this.log(`Batch exported ${result.created}/${result.total} spans`)
+
+      // Note: Batch endpoint doesn't return individual span IDs,
+      // so we can't update individual spans. For spans that need updates
+      // (endedAt/error), we'll need to handle them separately if needed.
+      // For now, batch is primarily for initial span creation.
+    } catch (error) {
+      this.handleError(error, {
+        operation: 'createSpanBatch',
+        externalId: `batch_${spans.length}_spans`,
+        itemType: 'span'
+      })
+
+      // Fall back to individual exports on batch failure
+      this.log('Batch failed, falling back to individual exports')
+      await Promise.all(spans.map(span => this.exportSpan(span, agTraceId, signal)))
     }
   }
 

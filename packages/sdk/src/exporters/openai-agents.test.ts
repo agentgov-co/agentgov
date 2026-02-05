@@ -125,6 +125,19 @@ function setupSuccessfulResponses() {
       }
     }
 
+    if (method === 'POST' && path === '/v1/spans/batch') {
+      const body = JSON.parse(options.body as string)
+      const count = body.spans?.length ?? 0
+      return {
+        ok: true,
+        status: 201,
+        json: () => Promise.resolve({
+          created: count,
+          total: count
+        })
+      }
+    }
+
     if (method === 'POST' && path === '/v1/spans') {
       spanCounter++
       return {
@@ -798,6 +811,153 @@ describe('AgentGovExporter', () => {
     it('shutdown should be callable multiple times', async () => {
       await expect(exporter.shutdown()).resolves.not.toThrow()
       await expect(exporter.shutdown()).resolves.not.toThrow()
+    })
+  })
+
+  describe('Batch export', () => {
+    it('should use batch endpoint when spans exceed threshold', async () => {
+      const exporter = new AgentGovExporter({
+        apiKey: 'ag_test',
+        projectId: 'proj_test',
+        batchThreshold: 3 // Lower threshold for testing
+      })
+
+      const trace = createMockTrace({ traceId: 'trace_batch' })
+      const spans = [
+        createMockSpan({ traceId: 'trace_batch', spanId: 'span_1', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_batch', spanId: 'span_2', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_batch', spanId: 'span_3', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_batch', spanId: 'span_4', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_batch', spanId: 'span_5', endedAt: new Date().toISOString() })
+      ]
+
+      await exporter.export([trace, ...spans])
+
+      // Should have called batch endpoint
+      const batchCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans/batch')
+      )
+      expect(batchCalls.length).toBe(1)
+
+      // Should NOT have individual span create calls
+      const individualSpanCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans') && !call[0].includes('/batch')
+      )
+      expect(individualSpanCalls.length).toBe(0)
+    })
+
+    it('should use individual exports when spans below threshold', async () => {
+      const exporter = new AgentGovExporter({
+        apiKey: 'ag_test',
+        projectId: 'proj_test',
+        batchThreshold: 10 // High threshold
+      })
+
+      const trace = createMockTrace({ traceId: 'trace_individual' })
+      const spans = [
+        createMockSpan({ traceId: 'trace_individual', spanId: 'span_1', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_individual', spanId: 'span_2', endedAt: new Date().toISOString() })
+      ]
+
+      await exporter.export([trace, ...spans])
+
+      // Should NOT have batch calls
+      const batchCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans/batch')
+      )
+      expect(batchCalls.length).toBe(0)
+
+      // Should have individual span calls (create + update for each)
+      const individualSpanCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans') && !call[0].includes('/batch') && call[1].method === 'POST'
+      )
+      expect(individualSpanCalls.length).toBe(2)
+    })
+
+    it('should disable batching when threshold is 0', async () => {
+      const exporter = new AgentGovExporter({
+        apiKey: 'ag_test',
+        projectId: 'proj_test',
+        batchThreshold: 0
+      })
+
+      const trace = createMockTrace({ traceId: 'trace_no_batch' })
+      const spans = Array.from({ length: 10 }, (_, i) =>
+        createMockSpan({ traceId: 'trace_no_batch', spanId: `span_${i}`, endedAt: new Date().toISOString() })
+      )
+
+      await exporter.export([trace, ...spans])
+
+      // Should NOT have batch calls
+      const batchCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans/batch')
+      )
+      expect(batchCalls.length).toBe(0)
+    })
+
+    it('should fall back to individual exports on batch failure', async () => {
+      const exporter = new AgentGovExporter({
+        apiKey: 'ag_test',
+        projectId: 'proj_test',
+        batchThreshold: 2
+      })
+
+      let batchCallCount = 0
+      mockFetch.mockImplementation(async (url: string, options: RequestInit) => {
+        if (url.includes('/v1/traces')) {
+          return {
+            ok: true,
+            status: 201,
+            json: () => Promise.resolve({ id: 'ag_trace_1' })
+          }
+        }
+
+        if (url.includes('/v1/spans/batch')) {
+          batchCallCount++
+          // Fail batch endpoint
+          return {
+            ok: false,
+            status: 500,
+            text: () => Promise.resolve('Internal Server Error')
+          }
+        }
+
+        if (url.includes('/v1/spans') && options.method === 'POST') {
+          return {
+            ok: true,
+            status: 201,
+            json: () => Promise.resolve({ id: `ag_span_${Date.now()}` })
+          }
+        }
+
+        if (url.includes('/v1/spans') && options.method === 'PATCH') {
+          return {
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ status: 'COMPLETED' })
+          }
+        }
+
+        return { ok: false, status: 404, text: () => Promise.resolve('Not found') }
+      })
+
+      const trace = createMockTrace({ traceId: 'trace_fallback' })
+      const spans = [
+        createMockSpan({ traceId: 'trace_fallback', spanId: 'span_1', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_fallback', spanId: 'span_2', endedAt: new Date().toISOString() }),
+        createMockSpan({ traceId: 'trace_fallback', spanId: 'span_3', endedAt: new Date().toISOString() })
+      ]
+
+      await exporter.export([trace, ...spans])
+
+      // Batch should have been attempted
+      expect(batchCallCount).toBe(1)
+
+      // Should have fallen back to individual exports
+      const individualSpanCalls = mockFetch.mock.calls.filter(
+        (call) => call[0].includes('/v1/spans') && !call[0].includes('/batch') && call[1].method === 'POST'
+      )
+      expect(individualSpanCalls.length).toBe(3)
     })
   })
 })

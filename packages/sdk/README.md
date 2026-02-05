@@ -113,9 +113,30 @@ new AgentGovExporter({
   cacheTtl: number,         // Default: 3600000 (1 hour)
   maxRetries: number,       // Default: 3
   timeout: number,          // Default: 30000 (ms)
+  batchThreshold: number,   // Default: 5. Min spans to use batch endpoint. Set to 0 to disable.
   onError: (error, ctx) => void, // Optional error callback
 });
 ```
+
+**Performance tuning:**
+
+For agents with many spans (100+ per trace), the exporter automatically batches span creation:
+
+```typescript
+new AgentGovExporter({
+  apiKey: process.env.AGENTGOV_API_KEY!,
+  projectId: process.env.AGENTGOV_PROJECT_ID!,
+  batchThreshold: 10,  // Use batch endpoint when 10+ spans need export
+});
+```
+
+| Scenario | Recommended `batchThreshold` |
+| --- | --- |
+| Simple agents (< 10 spans) | `0` (disabled) |
+| Medium complexity (10-50 spans) | `5` (default) |
+| Complex multi-agent workflows | `10-20` |
+
+The batch endpoint reduces API calls by up to 20x and includes automatic fallback to individual exports on failure.
 
 ### Manual Tracing
 

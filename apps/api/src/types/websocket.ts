@@ -6,6 +6,7 @@ export type {
   WSTraceCreated,
   WSSpanCreated,
   WSTraceUpdated,
+  WSBatchSpansCreated,
   WSConnected,
   WSError,
   WSPong,
