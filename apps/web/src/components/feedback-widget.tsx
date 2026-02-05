@@ -26,7 +26,7 @@ export function FeedbackWidget(): React.JSX.Element {
 
     setSubmitting(true);
     try {
-      const res = await fetch("/api/feedback", {
+      const res = await fetch("/api/proxy/v1/feedback", {
         method: "POST",
         headers: { "Content-Type": "application/json" },
         body: JSON.stringify({ type, message: message.trim(), page: pathname }),
