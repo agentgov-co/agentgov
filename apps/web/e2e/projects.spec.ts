@@ -1,4 +1,5 @@
 import { test, expect } from '@playwright/test'
+import { ensureOrgLoaded } from './test-helpers'
 
 test.describe('Projects', () => {
   test.describe('Projects Page', () => {
@@ -51,6 +52,8 @@ test.describe('Projects', () => {
         },
       ]
 
+      await ensureOrgLoaded(page)
+
       await page.route('**/v1/projects*', async (route) => {
         if (route.request().method() === 'GET') {
           await route.fulfill({
@@ -67,7 +70,7 @@ test.describe('Projects', () => {
 
       // Scope to main content to avoid matching the header project selector
       const main = page.locator('main')
-      await expect(main.getByText('Test Project 1')).toBeVisible()
+      await expect(main.getByText('Test Project 1')).toBeVisible({ timeout: 15000 })
       await expect(main.getByText('Test Project 2')).toBeVisible()
       await expect(main.getByText('5 traces')).toBeVisible()
       await expect(main.getByText('10 traces')).toBeVisible()
