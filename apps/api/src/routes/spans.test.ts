@@ -30,7 +30,7 @@ vi.mock('../middleware/auth.js', () => ({
       ;(request as unknown as Record<string, unknown>).organization = {
         id: orgId,
         name: 'Test Org',
-        role: 'OWNER',
+        role: 'owner',
       }
       // No request.project — this is the org-level auth path
     } else if (auth?.startsWith('Bearer session_none_')) {

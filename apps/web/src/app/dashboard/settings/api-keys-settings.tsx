@@ -54,8 +54,8 @@ export function ApiKeysSettings(): React.JSX.Element {
     try {
       const result = await createApiKey.mutateAsync({
         name: newKeyName,
-        projectId: newKeyProject || undefined,
-        expiresInDays: newKeyExpiry ? parseInt(newKeyExpiry) : undefined,
+        projectId: newKeyProject && newKeyProject !== 'all' ? newKeyProject : undefined,
+        expiresInDays: newKeyExpiry && newKeyExpiry !== 'never' ? parseInt(newKeyExpiry) : undefined,
       })
       setCreatedKey(result.key)
       setNewKeyName('')
@@ -209,7 +209,7 @@ export function ApiKeysSettings(): React.JSX.Element {
                         <SelectValue placeholder="All projects" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All projects</SelectItem>
+                        <SelectItem value="all">All projects</SelectItem>
                         {projects?.map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.name}
@@ -229,7 +229,7 @@ export function ApiKeysSettings(): React.JSX.Element {
                         <SelectValue placeholder="Never expires" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Never expires</SelectItem>
+                        <SelectItem value="never">Never expires</SelectItem>
                         <SelectItem value="7">7 days</SelectItem>
                         <SelectItem value="30">30 days</SelectItem>
                         <SelectItem value="90">90 days</SelectItem>

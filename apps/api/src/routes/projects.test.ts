@@ -4,10 +4,11 @@ import { randomBytes } from 'crypto'
 
 // Mock data store
 const mockProjects: Map<string, Record<string, unknown>> = new Map()
+const mockApiKeys: Map<string, Record<string, unknown>> = new Map()
 
 // Mock user and organization for session auth
 const MOCK_USER = { id: 'user_123', email: 'test@example.com', name: 'Test User' }
-const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'OWNER' }
+const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'owner' }
 
 // Mock prisma module
 vi.mock('../lib/prisma.js', () => ({
@@ -36,9 +37,81 @@ vi.mock('../lib/prisma.js', () => ({
         mockProjects.delete(where.id)
         return Promise.resolve(project)
       })
-    }
+    },
+    apiKey: {
+      create: vi.fn(({ data }) => {
+        const apiKey = {
+          id: `key_${randomBytes(8).toString('hex')}`,
+          ...data,
+          createdAt: new Date()
+        }
+        mockApiKeys.set(apiKey.id, apiKey)
+        return Promise.resolve(apiKey)
+      })
+    },
+    $transaction: vi.fn(async (callback) => {
+      // Create a mock transaction client that mimics prisma
+      const txClient = {
+        project: {
+          create: vi.fn(({ data }) => {
+            const project = {
+              id: `proj_${randomBytes(8).toString('hex')}`,
+              ...data,
+              createdAt: new Date(),
+              updatedAt: new Date()
+            }
+            mockProjects.set(project.id, project)
+            return Promise.resolve(project)
+          })
+        },
+        apiKey: {
+          create: vi.fn(({ data }) => {
+            const apiKey = {
+              id: `key_${randomBytes(8).toString('hex')}`,
+              ...data,
+              createdAt: new Date()
+            }
+            mockApiKeys.set(apiKey.id, apiKey)
+            return Promise.resolve(apiKey)
+          })
+        }
+      }
+      return callback(txClient)
+    })
   }
 }))
+
+// Mock audit service
+vi.mock('../services/audit.js', () => ({
+  auditService: {
+    log: vi.fn(() => Promise.resolve()),
+    logApiKeyCreated: vi.fn(() => Promise.resolve()),
+    logApiKeyDeleted: vi.fn(() => Promise.resolve())
+  }
+}))
+
+// Mock api-key service - partial mock to allow real generateApiKey
+vi.mock('../services/api-key.service.js', async () => {
+  const actual = await vi.importActual('../services/api-key.service.js')
+  return {
+    ...actual,
+    apiKeyService: {
+      createForProject: vi.fn(async (projectId, projectName, userId, organizationId, keyHash) => {
+        const apiKey = {
+          id: `key_${randomBytes(8).toString('hex')}`,
+          name: `${projectName} - Default Key`,
+          keyHash,
+          keyPrefix: 'ag_live_',
+          projectId,
+          permissions: ['traces:write', 'traces:read'],
+          createdAt: new Date()
+        }
+        mockApiKeys.set(apiKey.id, apiKey)
+        return apiKey
+      })
+    }
+  }
+})
 
 // Mock auth middleware with proper async signature
 vi.mock('../middleware/auth.js', () => ({
@@ -90,6 +163,7 @@ describe('Projects API', () => {
 
   beforeEach(() => {
     mockProjects.clear()
+    mockApiKeys.clear()
   })
 
   describe('Authentication', () => {
@@ -126,7 +200,7 @@ describe('Projects API', () => {
   })
 
   describe('POST /v1/projects', () => {
-    it('should create a project', async () => {
+    it('should create a project with API key', async () => {
       const response = await app.inject({
         method: 'POST',
         url: '/v1/projects',
@@ -142,7 +216,27 @@ describe('Projects API', () => {
       expect(body.id).toBeDefined()
       expect(body.name).toBe('My Project')
       expect(body.apiKey).toBeDefined()
-      expect(body.apiKey).toMatch(/^ag_/)
+      expect(body.apiKey).toMatch(/^ag_live_[a-f0-9]{48}$/)
+    })
+
+    it('should create API key record alongside project', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/projects',
+        headers: AUTH_HEADER,
+        payload: { name: 'Project With Key' }
+      })
+
+      expect(response.statusCode).toBe(201)
+
+      // Verify API key was created
+      expect(mockApiKeys.size).toBe(1)
+      const apiKey = Array.from(mockApiKeys.values())[0]
+      expect(apiKey).toMatchObject({
+        name: 'Project With Key - Default Key',
+        keyPrefix: 'ag_live_',
+        permissions: ['traces:write', 'traces:read']
+      })
     })
 
     it('should reject invalid project data', async () => {
@@ -213,6 +307,12 @@ describe('Projects API', () => {
       })
       const created = JSON.parse(createResponse.body)
 
+      // Update mock to include organizationId for ownership check
+      const project = mockProjects.get(created.id)
+      if (project) {
+        project.organizationId = MOCK_ORG.id
+      }
+
       const response = await app.inject({
         method: 'GET',
         url: `/v1/projects/${created.id}`,
@@ -246,6 +346,12 @@ describe('Projects API', () => {
         payload: { name: 'To Delete' }
       })
       const created = JSON.parse(createResponse.body)
+
+      // Update mock to include organizationId for ownership check
+      const project = mockProjects.get(created.id)
+      if (project) {
+        project.organizationId = MOCK_ORG.id
+      }
 
       const response = await app.inject({
         method: 'DELETE',

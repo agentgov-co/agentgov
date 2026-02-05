@@ -14,6 +14,6 @@ export type SpanType =
 
 export type SpanStatus = 'RUNNING' | 'COMPLETED' | 'FAILED'
 
-export type MemberRole = 'OWNER' | 'ADMIN' | 'MEMBER'
+export type MemberRole = 'owner' | 'admin' | 'member'
 
 export type InvitationStatus = 'PENDING' | 'ACCEPTED' | 'REJECTED' | 'EXPIRED'

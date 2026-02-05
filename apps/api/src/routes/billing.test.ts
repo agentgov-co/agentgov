@@ -3,8 +3,8 @@ import Fastify, { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 
 // Mock user and organization
 const MOCK_USER = { id: 'user_123', email: 'test@example.com', name: 'Test User' }
-const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'OWNER' }
-const MOCK_ORG_MEMBER = { id: 'org_123', name: 'Test Org', role: 'MEMBER' }
+const MOCK_ORG = { id: 'org_123', name: 'Test Org', role: 'owner' }
+const MOCK_ORG_MEMBER = { id: 'org_123', name: 'Test Org', role: 'member' }
 
 // Mock subscription data
 const mockSubscription = {
