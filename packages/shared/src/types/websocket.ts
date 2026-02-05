@@ -52,6 +52,14 @@ export interface WSTraceUpdated {
   }
 }
 
+export interface WSBatchSpansCreated {
+  type: 'spans:batch-created'
+  data: {
+    traceId: string
+    count: number
+  }
+}
+
 export interface WSConnected {
   type: 'connected'
   clientId: string
@@ -71,6 +79,7 @@ export type WSServerMessage =
   | WSTraceCreated
   | WSSpanCreated
   | WSTraceUpdated
+  | WSBatchSpansCreated
   | WSConnected
   | WSError
   | WSPong

@@ -9,8 +9,10 @@ import { wsManager } from '../lib/websocket-manager.js'
 import {
   CreateSpanSchema,
   UpdateSpanSchema,
+  CreateSpanBatchSchema,
   type CreateSpan,
-  type UpdateSpan
+  type UpdateSpan,
+  type CreateSpanBatch
 } from '../schemas/index.js'
 
 export async function spanRoutes(fastify: FastifyInstance): Promise<void> {
@@ -139,6 +141,78 @@ export async function spanRoutes(fastify: FastifyInstance): Promise<void> {
         request.log.error({ err: error }, 'Failed to create span')
         return reply.status(500).send({
           error: 'Failed to create span',
+          message: process.env.NODE_ENV === 'development' ? String(error) : undefined
+        })
+      }
+    })
+
+    // POST /v1/spans/batch - Create multiple spans
+    sdk.post('/batch', { bodyLimit: SDK_BODY_LIMIT * 10 }, async (
+      request: FastifyRequest<{ Body: CreateSpanBatch }>,
+      reply: FastifyReply
+    ) => {
+      const project = request.project!
+      const parsed = CreateSpanBatchSchema.safeParse(request.body)
+
+      if (!parsed.success) {
+        return reply.status(400).send({
+          error: 'Validation failed',
+          details: parsed.error.flatten()
+        })
+      }
+
+      const { spans } = parsed.data
+
+      // Collect unique trace IDs and verify access
+      const traceIds = [...new Set(spans.map(s => s.traceId))]
+      const traces = await prisma.trace.findMany({
+        where: { id: { in: traceIds } },
+        select: { id: true, projectId: true }
+      })
+
+      const traceMap = new Map(traces.map(t => [t.id, t]))
+
+      // Verify all traces exist and belong to project
+      for (const traceId of traceIds) {
+        const trace = traceMap.get(traceId)
+        if (!trace) {
+          return reply.status(404).send({ error: `Trace not found: ${traceId}` })
+        }
+        if (trace.projectId !== project.id) {
+          return reply.status(403).send({ error: 'Access denied' })
+        }
+      }
+
+      try {
+        // Use createMany for efficiency
+        const result = await prisma.span.createMany({
+          data: spans.map(span => ({
+            ...span,
+            input: span.input as Prisma.InputJsonValue | undefined,
+            metadata: span.metadata as Prisma.InputJsonValue | undefined,
+            toolInput: span.toolInput as Prisma.InputJsonValue | undefined
+          })),
+          skipDuplicates: true
+        })
+
+        request.log.info(
+          { count: result.count, traceIds, projectId: project.id },
+          'Batch spans created'
+        )
+
+        // Notify WebSocket for each trace (batch notification)
+        for (const traceId of traceIds) {
+          wsManager.notifyBatchSpansCreated(traceId, result.count, project.id)
+        }
+
+        return reply.status(201).send({
+          created: result.count,
+          total: spans.length
+        })
+      } catch (error) {
+        request.log.error({ err: error }, 'Failed to create batch spans')
+        return reply.status(500).send({
+          error: 'Failed to create batch spans',
           message: process.env.NODE_ENV === 'development' ? String(error) : undefined
         })
       }
