@@ -5,7 +5,7 @@
 
 Observability SDK for AI agents. Trace LLM calls, tool usage, and agent steps with minimal code changes.
 
-Supports OpenAI, Vercel AI SDK, streaming, tool calls, and cost tracking.
+Supports OpenAI, OpenAI Agents SDK, Vercel AI SDK, streaming, tool calls, and cost tracking.
 
 ## Installation
 
@@ -55,6 +55,65 @@ const tracedStreamText = ag.wrapStreamText(streamText);
 const { text } = await tracedGenerateText({
   model: openai("gpt-4o"),
   prompt: "Hello!",
+});
+```
+
+### OpenAI Agents SDK
+
+Native integration with [@openai/agents](https://github.com/openai/openai-agents-js):
+
+```typescript
+import { Agent, run } from "@openai/agents";
+import { BatchTraceProcessor, setTraceProcessors } from "@openai/agents";
+import { AgentGovExporter } from "@agentgov/sdk/openai-agents";
+
+// Setup tracing (do this once at app startup)
+setTraceProcessors([
+  new BatchTraceProcessor(
+    new AgentGovExporter({
+      apiKey: process.env.AGENTGOV_API_KEY!,
+      projectId: process.env.AGENTGOV_PROJECT_ID!,
+    })
+  ),
+]);
+
+// Your agent code — all traces automatically captured
+const agent = new Agent({
+  name: "WeatherAgent",
+  model: "gpt-4o",
+  instructions: "You help users with weather information.",
+  tools: [getWeatherTool],
+});
+
+await run(agent, "What's the weather in Tokyo?");
+```
+
+**Supported span types:**
+
+| OpenAI Agents Type | AgentGov Type | Description |
+| --- | --- | --- |
+| `generation` | `LLM_CALL` | LLM API calls with model, tokens, cost |
+| `function` | `TOOL_CALL` | Tool/function executions |
+| `agent` | `AGENT_STEP` | Agent lifecycle spans |
+| `handoff` | `AGENT_STEP` | Agent-to-agent handoffs |
+| `guardrail` | `CUSTOM` | Guardrail checks |
+| `response` | `LLM_CALL` | Response aggregation |
+| `transcription`, `speech` | `LLM_CALL` | Voice agent operations |
+| `custom` | `CUSTOM` | Custom spans |
+
+**Configuration options:**
+
+```typescript
+new AgentGovExporter({
+  apiKey: string,           // Required. API key from dashboard
+  projectId: string,        // Required. Project ID
+  baseUrl: string,          // Default: "https://api.agentgov.co"
+  debug: boolean,           // Default: false
+  maxCacheSize: number,     // Default: 1000 (LRU cache for trace IDs)
+  cacheTtl: number,         // Default: 3600000 (1 hour)
+  maxRetries: number,       // Default: 3
+  timeout: number,          // Default: 30000 (ms)
+  onError: (error, ctx) => void, // Optional error callback
 });
 ```
 
@@ -210,6 +269,14 @@ import type {
   Span, SpanInput, SpanUpdate, SpanStatus, SpanType,
   WrapOpenAIOptions, WrapVercelAIOptions,
 } from "@agentgov/sdk";
+
+// OpenAI Agents SDK types
+import type {
+  AgentGovExporter,
+  AgentGovExporterConfig,
+  TracingExporter,
+  ExportErrorContext,
+} from "@agentgov/sdk/openai-agents";
 ```
 
 ## Examples
