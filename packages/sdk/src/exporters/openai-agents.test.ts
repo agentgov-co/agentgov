@@ -233,7 +233,7 @@ describe('AgentGovExporter', () => {
       )
     })
 
-    it('should create trace with metadata including externalId', async () => {
+    it('should create trace with externalId for idempotency', async () => {
       const trace = createMockTrace({
         traceId: 'trace_external_123',
         metadata: { customKey: 'customValue' }
@@ -243,8 +243,9 @@ describe('AgentGovExporter', () => {
       const call = mockFetch.mock.calls[0]
       const body = JSON.parse(call[1].body as string)
 
+      // externalId should be top-level for upsert support
+      expect(body.externalId).toBe('trace_external_123')
       expect(body.metadata).toEqual(expect.objectContaining({
-        externalId: 'trace_external_123',
         customKey: 'customValue'
       }))
     })

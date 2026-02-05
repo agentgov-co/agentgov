@@ -138,8 +138,8 @@ export class AgentGovExporter implements TracingExporter {
       try {
         const trace = await this.client.createTrace({
           name: traceItem?.name ?? 'Agent Run',
+          externalId: externalTraceId, // For idempotency
           metadata: {
-            externalId: externalTraceId,
             groupId: traceItem?.groupId,
             ...traceItem?.metadata
           }

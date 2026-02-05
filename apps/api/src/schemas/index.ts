@@ -49,7 +49,10 @@ export const TraceStatusSchema: z.ZodEnum<[TraceStatus, ...TraceStatus[]]> = z.e
 export const CreateTraceSchema = z.object({
   name: z.string().max(200).optional(),
   input: jsonPayloadMax.optional(),
-  metadata: jsonPayloadMax.optional()
+  metadata: jsonPayloadMax.optional(),
+  // External ID for idempotency (e.g., OpenAI Agents trace_id)
+  // If provided, existing trace with same externalId will be returned (upsert)
+  externalId: z.string().max(100).optional()
 })
 
 export const UpdateTraceSchema = z.object({

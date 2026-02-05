@@ -311,10 +311,10 @@ describe('AgentGovExporter Integration', () => {
       expect(spanCreateCalls).toHaveLength(4) // agent + 2 llm + 1 tool
       expect(spanUpdateCalls).toHaveLength(4) // All spans have endedAt
 
-      // Verify trace metadata
+      // Verify trace data
       const traceBody = JSON.parse(traceCreateCalls[0][1].body as string)
       expect(traceBody.name).toBe('WeatherAgent')
-      expect(traceBody.metadata.externalId).toBe(traceId)
+      expect(traceBody.externalId).toBe(traceId)
     })
 
     it('should handle multiple concurrent traces', async () => {
@@ -502,6 +502,103 @@ describe('AgentGovExporter Integration', () => {
   describe('forceFlush method', () => {
     it('should be callable without error', async () => {
       await expect(exporter.forceFlush()).resolves.not.toThrow()
+    })
+  })
+
+  describe('Idempotency with externalId', () => {
+    it('should send traceId as externalId for idempotent trace creation', async () => {
+      // createTrace prefixes with 'trace_', so 'idempotent_123' becomes 'trace_idempotent_123'
+      const trace = createTrace('idempotent_123', 'IdempotentAgent')
+      const expectedExternalId = 'trace_idempotent_123'
+
+      // First export
+      await exporter.export([trace])
+
+      // Verify externalId is sent as top-level field
+      const traceCreateCalls = mockFetch.mock.calls.filter(
+        (call) => call[1].method === 'POST' && call[0].includes('/v1/traces')
+      )
+
+      expect(traceCreateCalls).toHaveLength(1)
+      const body = JSON.parse(traceCreateCalls[0][1].body as string)
+      expect(body.externalId).toBe(expectedExternalId)
+    })
+
+    it('should not create duplicate trace when API returns existing', async () => {
+      const expectedExternalId = 'trace_existing_456'
+      let traceCallCount = 0
+
+      // Simulate API returning existing trace (200) instead of creating new (201)
+      mockFetch.mockImplementation(async (url: string, options: RequestInit) => {
+        const method = options.method
+        const path = new URL(url).pathname
+
+        if (method === 'POST' && path === '/v1/traces') {
+          traceCallCount++
+          // Return the same trace ID for both calls (simulating idempotent behavior)
+          return {
+            ok: true,
+            status: traceCallCount === 1 ? 201 : 200, // First call creates, second returns existing
+            json: () => Promise.resolve({
+              id: 'ag_trace_existing',
+              externalId: expectedExternalId
+            }),
+          }
+        }
+
+        if (method === 'POST' && path === '/v1/spans') {
+          return {
+            ok: true,
+            status: 201,
+            json: () => Promise.resolve({ id: `ag_span_${Date.now()}` }),
+          }
+        }
+
+        if (method === 'PATCH') {
+          return {
+            ok: true,
+            status: 200,
+            json: () => Promise.resolve({ status: 'COMPLETED' }),
+          }
+        }
+
+        return { ok: false, status: 404, text: () => Promise.resolve('Not found') }
+      })
+
+      const trace = createTrace('existing_456', 'ExistingAgent')
+      const span = createGenerationSpan('trace_existing_456', 'span_1', null)
+
+      // First export - creates trace
+      await exporter.export([trace])
+      expect(traceCallCount).toBe(1)
+
+      // Clear cache to simulate new exporter instance
+      exporter.clearCaches()
+
+      // Second export - should call API again (cache cleared)
+      // but API returns existing trace
+      await exporter.export([trace, span])
+      expect(traceCallCount).toBe(2)
+
+      // Both exports should use the same AgentGov trace ID
+      // (verified by the mock returning same id: 'ag_trace_existing')
+    })
+
+    it('should use consistent externalId format across exports', async () => {
+      const trace1 = createTrace('format_1', 'Agent1')
+      const trace2 = createTrace('format_2', 'Agent2')
+
+      await exporter.export([trace1, trace2])
+
+      const traceCreateCalls = mockFetch.mock.calls.filter(
+        (call) => call[1].method === 'POST' && call[0].includes('/v1/traces')
+      )
+
+      // Verify both traces have externalId set correctly
+      // createTrace prefixes with 'trace_'
+      const bodies = traceCreateCalls.map(call => JSON.parse(call[1].body as string))
+      expect(bodies[0].externalId).toBe('trace_format_1')
+      expect(bodies[1].externalId).toBe('trace_format_2')
     })
   })
 })

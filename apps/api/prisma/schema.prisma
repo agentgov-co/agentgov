@@ -286,6 +286,10 @@ model Trace {
   projectId String      @map("project_id")
   project   Project     @relation(fields: [projectId], references: [id], onDelete: Cascade)
 
+  // External ID for idempotency (e.g., OpenAI Agents trace_id)
+  // Unique per project to allow same externalId in different projects
+  externalId String?    @map("external_id")
+
   // Optional link to AI System for compliance tracking
   aiSystemId String?    @map("ai_system_id")
   aiSystem   AISystem?  @relation(fields: [aiSystemId], references: [id], onDelete: SetNull)
@@ -315,6 +319,7 @@ model Trace {
   // Relations
   spans     Span[]
 
+  @@unique([projectId, externalId]) // Idempotency: externalId unique per project
   @@index([projectId])
   @@index([status])
   @@index([startedAt])
