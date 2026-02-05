@@ -3,6 +3,9 @@ import type { Page } from '@playwright/test'
 // Must match the organization ID from the seed data
 const E2E_ORG_ID = 'org_dev_001'
 
+// Default project ID used in e2e tests
+const E2E_PROJECT_ID = 'proj_chatbot'
+
 /**
  * Intercepts auth endpoints to ensure the active organization is loaded.
  *
@@ -56,4 +59,28 @@ export async function ensureOrgLoaded(page: Page): Promise<void> {
       })
     },
   )
+
+  // Mock projects endpoint so selectedProjectId validation passes
+  // This is needed because dashboard-layout.tsx validates localStorage projectId
+  // against the actual projects list from useProjects()
+  await page.route('**/v1/projects*', async (route) => {
+    // Only intercept GET requests (list projects)
+    if (route.request().method() !== 'GET') {
+      await route.continue()
+      return
+    }
+    await route.fulfill({
+      status: 200,
+      contentType: 'application/json',
+      body: JSON.stringify([
+        {
+          id: E2E_PROJECT_ID,
+          name: 'Chatbot Project',
+          description: 'E2E test project',
+          createdAt: new Date().toISOString(),
+          updatedAt: new Date().toISOString(),
+        },
+      ]),
+    })
+  })
 }
