@@ -1,4 +1,4 @@
-import { describe, it, expect, vi, beforeEach, type Mock } from 'vitest'
+import { describe, it, expect, vi, beforeEach, afterEach } from 'vitest'
 import { renderHook, act, waitFor } from '@testing-library/react'
 import { ReadyState } from 'react-use-websocket'
 import { useRealtime } from './use-realtime'
@@ -47,6 +47,14 @@ vi.mock('@/hooks/use-traces', () => ({
   },
 }))
 
+// ── Helpers ─────────────────────────────────────────────
+
+function getShouldReconnect(): () => boolean {
+  const fn = capturedOptions.shouldReconnect as (() => boolean) | undefined
+  if (!fn) throw new Error('shouldReconnect not captured — was the hook rendered?')
+  return fn
+}
+
 // ── Tests ──────────────────────────────────────────────
 
 describe('useRealtime', () => {
@@ -56,6 +64,10 @@ describe('useRealtime', () => {
     mockReadyState = ReadyState.CLOSED
     capturedOptions = {}
     mockGetTicket.mockReset()
+  })
+
+  afterEach(() => {
+    vi.useRealTimers()
   })
 
   describe('ticket-based auth flow', () => {
@@ -248,49 +260,136 @@ describe('useRealtime', () => {
   })
 
   describe('reconnection', () => {
-    it('fetches fresh ticket on reconnect', async () => {
-      mockGetTicket
-        .mockResolvedValueOnce({ ticket: 'ticket-initial' })
-        .mockResolvedValueOnce({ ticket: 'ticket-reconnect' })
+    it('always returns false — reconnection driven by URL change, not library', async () => {
+      vi.useFakeTimers()
+      mockGetTicket.mockResolvedValue({ ticket: 'ticket-initial' })
 
       renderHook(() =>
         useRealtime({ projectId: 'proj_1', enabled: true })
       )
 
-      await waitFor(() => {
-        expect(mockGetTicket).toHaveBeenCalledTimes(1)
-      })
+      // Flush initial ticket fetch
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
 
-      // Simulate shouldReconnect callback
-      const shouldReconnect = capturedOptions.shouldReconnect as (() => boolean) | undefined
-      if (shouldReconnect) {
-        const result = shouldReconnect()
+      const shouldReconnect = getShouldReconnect()
 
-        expect(result).toBe(true)
-        expect(mockGetTicket).toHaveBeenCalledTimes(2)
-      }
+      // Every call returns false — the library must never schedule its own reconnect
+      expect(shouldReconnect()).toBe(false)
+      expect(shouldReconnect()).toBe(false)
+      expect(shouldReconnect()).toBe(false)
+    })
+
+    it('schedules ticket fetch with exponential backoff', async () => {
+      vi.useFakeTimers()
+      mockGetTicket.mockResolvedValue({ ticket: 'ticket-initial' })
+
+      renderHook(() =>
+        useRealtime({ projectId: 'proj_1', enabled: true })
+      )
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(1)
+
+      const shouldReconnect = getShouldReconnect()
+
+      // 1st attempt: delay = min(1000 * 2^0, 30000) = 1000ms
+      shouldReconnect()
+      await act(async () => { await vi.advanceTimersByTimeAsync(999) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(1) // not yet
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(2) // now
+
+      // 2nd attempt: delay = min(1000 * 2^1, 30000) = 2000ms
+      shouldReconnect()
+      await act(async () => { await vi.advanceTimersByTimeAsync(1999) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(2) // not yet
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(3) // now
+
+      // 3rd attempt: delay = min(1000 * 2^2, 30000) = 4000ms
+      shouldReconnect()
+      await act(async () => { await vi.advanceTimersByTimeAsync(3999) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(3) // not yet
+      await act(async () => { await vi.advanceTimersByTimeAsync(1) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(4) // now
     })
 
     it('stops reconnecting after 10 attempts', async () => {
+      vi.useFakeTimers()
       mockGetTicket.mockResolvedValue({ ticket: 'ticket-1' })
 
       renderHook(() =>
         useRealtime({ projectId: 'proj_1', enabled: true })
       )
 
-      await waitFor(() => {
-        expect(mockGetTicket).toHaveBeenCalledTimes(1)
-      })
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
 
-      const shouldReconnect = capturedOptions.shouldReconnect as (() => boolean) | undefined
-      if (shouldReconnect) {
-        // Exhaust 10 attempts
-        for (let i = 0; i < 9; i++) {
-          expect(shouldReconnect()).toBe(true)
-        }
-        // 10th attempt should return false
+      const shouldReconnect = getShouldReconnect()
+
+      // Exhaust 9 attempts (all return false, but schedule a retry)
+      for (let i = 0; i < 9; i++) {
         expect(shouldReconnect()).toBe(false)
       }
+
+      // 10th attempt: max reached, returns false AND does not schedule retry
+      const callsBefore = mockGetTicket.mock.calls.length
+      expect(shouldReconnect()).toBe(false)
+
+      // Advance plenty of time — no new ticket fetch should be scheduled
+      await act(async () => { await vi.advanceTimersByTimeAsync(60000) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(callsBefore)
+    })
+
+    it('cancels pending reconnect timeout on unmount', async () => {
+      vi.useFakeTimers()
+      mockGetTicket.mockResolvedValue({ ticket: 'ticket-1' })
+
+      const { unmount } = renderHook(() =>
+        useRealtime({ projectId: 'proj_1', enabled: true })
+      )
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      const callsAfterInit = mockGetTicket.mock.calls.length
+
+      // Trigger a reconnect — schedules a delayed ticket fetch
+      const shouldReconnect = getShouldReconnect()
+      shouldReconnect()
+
+      // Unmount before the backoff timer fires
+      unmount()
+
+      // Advance past any backoff delay — fetch should NOT happen
+      await vi.advanceTimersByTimeAsync(60000)
+      expect(mockGetTicket).toHaveBeenCalledTimes(callsAfterInit)
+    })
+
+    it('cancels previous timeout when shouldReconnect is called again', async () => {
+      vi.useFakeTimers()
+      mockGetTicket.mockResolvedValue({ ticket: 'ticket-1' })
+
+      renderHook(() =>
+        useRealtime({ projectId: 'proj_1', enabled: true })
+      )
+
+      await act(async () => { await vi.advanceTimersByTimeAsync(0) })
+      const callsAfterInit = mockGetTicket.mock.calls.length
+
+      const shouldReconnect = getShouldReconnect()
+
+      // 1st attempt schedules fetch at +1000ms
+      shouldReconnect()
+
+      // Before it fires, trigger 2nd attempt — should cancel the 1st timeout
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      shouldReconnect()
+
+      // At +1000ms from start, the 1st timeout would have fired — but it was cancelled
+      await act(async () => { await vi.advanceTimersByTimeAsync(500) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(callsAfterInit) // no extra fetch
+
+      // 2nd attempt fires at +500 + 2000ms = +2500ms from start
+      await act(async () => { await vi.advanceTimersByTimeAsync(1500) })
+      expect(mockGetTicket).toHaveBeenCalledTimes(callsAfterInit + 1)
     })
   })
 

@@ -51,9 +51,21 @@ export function useRealtime(options: UseRealtimeOptions = {}): { isConnected: bo
   const reconnectAttempts = useRef(0)
   const lastProcessedMessage = useRef<string | null>(null)
   const [ticket, setTicket] = useState<string | null>(null)
-  // Ref mirror of ticket for use inside callbacks (avoids stale closure)
-  const ticketRef = useRef(ticket)
-  useEffect(() => { ticketRef.current = ticket }, [ticket])
+  // Ref mirror of ticket — synced manually in fetch callbacks (not via useEffect)
+  // to guarantee it's current before onOpen fires
+  const ticketRef = useRef<string | null>(null)
+  // Track pending reconnect timeout so we can cancel it on unmount or re-attempt
+  const reconnectTimeoutRef = useRef<ReturnType<typeof setTimeout> | null>(null)
+
+  // Cancel any pending reconnect timeout on unmount
+  useEffect(() => {
+    return () => {
+      if (reconnectTimeoutRef.current !== null) {
+        clearTimeout(reconnectTimeoutRef.current)
+        reconnectTimeoutRef.current = null
+      }
+    }
+  }, [])
 
   // Fetch a one-time WebSocket auth ticket when enabled/projectId changes
   useEffect(() => {
@@ -63,7 +75,10 @@ export function useRealtime(options: UseRealtimeOptions = {}): { isConnected: bo
 
     fetchTicket(projectId)
       .then((t) => {
-        if (!cancelled) setTicket(t)
+        if (!cancelled) {
+          ticketRef.current = t
+          setTicket(t)
+        }
       })
       .catch((err) => {
         console.error('[WS] Failed to get auth ticket:', err)
@@ -71,7 +86,7 @@ export function useRealtime(options: UseRealtimeOptions = {}): { isConnected: bo
 
     return () => {
       cancelled = true
-      // Reset ticket on cleanup so a fresh one is fetched on next mount
+      ticketRef.current = null
       setTicket(null)
     }
   }, [enabled, projectId])
@@ -87,20 +102,42 @@ export function useRealtime(options: UseRealtimeOptions = {}): { isConnected: bo
     {
       shouldReconnect: () => {
         reconnectAttempts.current += 1
+
+        // Always cancel any in-flight reconnect timeout from a previous attempt
+        // (must happen before the max-attempts guard so the last pending timer
+        //  is cleaned up when we give up)
+        if (reconnectTimeoutRef.current !== null) {
+          clearTimeout(reconnectTimeoutRef.current)
+          reconnectTimeoutRef.current = null
+        }
+
         if (reconnectAttempts.current >= 10) return false
 
-        // Need a fresh ticket for reconnection — triggers re-fetch via state change
+        // Invalidate current ticket immediately
+        ticketRef.current = null
         setTicket(null)
-        fetchTicket(projectId)
-          .then((t) => setTicket(t))
-          .catch((err) => {
-            console.error('[WS] Failed to get reconnect ticket:', err)
-          })
 
-        return true
+        // Fetch a fresh ticket after exponential backoff.
+        // When the new ticket arrives, wsUrl changes from null → url,
+        // which is the SOLE trigger for reconnection (no library-managed reconnect).
+        const delay = Math.min(1000 * Math.pow(2, reconnectAttempts.current - 1), 30000)
+        reconnectTimeoutRef.current = setTimeout(() => {
+          reconnectTimeoutRef.current = null
+          fetchTicket(projectId)
+            .then((t) => {
+              ticketRef.current = t
+              setTicket(t)
+            })
+            .catch((err) => {
+              console.error('[WS] Failed to get reconnect ticket:', err)
+            })
+        }, delay)
+
+        // Return false — we drive reconnection via URL change, not library internals.
+        // Returning true would cause a SECOND connection attempt that races with the
+        // URL-driven one, consuming the one-time ticket before onOpen can use it.
+        return false
       },
-      reconnectInterval: (attemptNumber) =>
-        Math.min(1000 * Math.pow(2, attemptNumber), 30000),
       heartbeat: {
         message: JSON.stringify({ type: 'ping' }),
         returnMessage: 'pong',

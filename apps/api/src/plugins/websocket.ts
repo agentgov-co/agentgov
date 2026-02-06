@@ -186,8 +186,15 @@ const websocketPlugin: FastifyPluginAsync = async (fastify) => {
 
           const ticketData = JSON.parse(ticketJson) as WsTicketData
 
-          // Verify IP match
-          if (ticketData.ip !== request.ip) {
+          // IP check: disabled by default because without Fastify trustProxy,
+          // request.ip returns the proxy/CDN IP — not the real client.
+          // The ticket is already one-time-use (atomic GETDEL) with 30s TTL
+          // and requires a valid session to create, so IP binding is optional.
+          if (process.env.WS_TICKET_CHECK_IP === 'true' && ticketData.ip !== request.ip) {
+            fastify.log.warn(
+              { expected: ticketData.ip, actual: request.ip },
+              '[WS] Ticket IP mismatch — enable Fastify trustProxy if behind a reverse proxy'
+            )
             socket.send(JSON.stringify({
               type: 'error',
               message: 'IP mismatch'
