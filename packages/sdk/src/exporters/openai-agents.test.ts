@@ -151,6 +151,15 @@ function setupSuccessfulResponses() {
       }
     }
 
+    if (method === 'PATCH' && path.startsWith('/v1/traces/')) {
+      const traceId = path.split('/').pop()
+      return {
+        ok: true,
+        status: 200,
+        json: () => Promise.resolve({ id: traceId, status: 'COMPLETED' })
+      }
+    }
+
     if (method === 'PATCH' && path.startsWith('/v1/spans/')) {
       const spanId = path.split('/').pop()
       return {
@@ -269,8 +278,8 @@ describe('AgentGovExporter', () => {
 
       await exporter.export([trace, span])
 
-      // Should have created trace, span, and updated span with COMPLETED status
-      expect(mockFetch).toHaveBeenCalledTimes(3) // trace + span + span update
+      // Should have created trace, span, updated span, and finalized trace
+      expect(mockFetch).toHaveBeenCalledTimes(4) // trace + span + span update + trace update
     })
 
     it('should reuse cached trace ID for multiple exports', async () => {
@@ -488,6 +497,77 @@ describe('AgentGovExporter', () => {
       expect(spanUpdateCall).toBeDefined()
       const body = JSON.parse(spanUpdateCall![1].body as string)
       expect(body.toolOutput).toEqual({ temperature: 20, condition: 'sunny' })
+    })
+  })
+
+  describe('trace finalization', () => {
+    it('should update trace to COMPLETED when all spans have endedAt', async () => {
+      const trace = createMockTrace({ traceId: 'trace_final' })
+      const span1 = createMockSpan({ traceId: 'trace_final', spanId: 'span_f1', endedAt: new Date().toISOString() })
+      const span2 = createMockSpan({ traceId: 'trace_final', spanId: 'span_f2', endedAt: new Date().toISOString() })
+
+      await exporter.export([trace, span1, span2])
+
+      const traceUpdateCall = mockFetch.mock.calls.find(
+        call => call[1].method === 'PATCH' && call[0].includes('/v1/traces/')
+      )
+
+      expect(traceUpdateCall).toBeDefined()
+      const body = JSON.parse(traceUpdateCall![1].body as string)
+      expect(body.status).toBe('COMPLETED')
+    })
+
+    it('should update trace to FAILED when any span has error', async () => {
+      const trace = createMockTrace({ traceId: 'trace_fail' })
+      const span1 = createMockSpan({ traceId: 'trace_fail', spanId: 'span_ok', endedAt: new Date().toISOString() })
+      const span2 = createMockSpan({ traceId: 'trace_fail', spanId: 'span_err', error: { message: 'boom' } })
+
+      await exporter.export([trace, span1, span2])
+
+      const traceUpdateCall = mockFetch.mock.calls.find(
+        call => call[1].method === 'PATCH' && call[0].includes('/v1/traces/')
+      )
+
+      expect(traceUpdateCall).toBeDefined()
+      const body = JSON.parse(traceUpdateCall![1].body as string)
+      expect(body.status).toBe('FAILED')
+    })
+
+    it('should not finalize trace when spans are still running', async () => {
+      const trace = createMockTrace({ traceId: 'trace_running' })
+      const span1 = createMockSpan({ traceId: 'trace_running', spanId: 'span_r1', endedAt: new Date().toISOString() })
+      const span2 = createMockSpan({ traceId: 'trace_running', spanId: 'span_r2' }) // no endedAt, no error
+
+      await exporter.export([trace, span1, span2])
+
+      const traceUpdateCall = mockFetch.mock.calls.find(
+        call => call[1].method === 'PATCH' && call[0].includes('/v1/traces/')
+      )
+
+      expect(traceUpdateCall).toBeUndefined()
+    })
+
+    it('should finalize trace even when all spans were previously cached', async () => {
+      const trace = createMockTrace({ traceId: 'trace_cached' })
+      const span1 = createMockSpan({ traceId: 'trace_cached', spanId: 'span_c1', endedAt: new Date().toISOString() })
+      const span2 = createMockSpan({ traceId: 'trace_cached', spanId: 'span_c2', endedAt: new Date().toISOString() })
+
+      // First export — creates trace + spans
+      await exporter.export([trace, span1, span2])
+
+      mockFetch.mockClear()
+      setupSuccessfulResponses()
+
+      // Second export — all spans cached, but should still finalize
+      await exporter.export([trace, span1, span2])
+
+      const traceUpdateCall = mockFetch.mock.calls.find(
+        call => call[1].method === 'PATCH' && call[0].includes('/v1/traces/')
+      )
+
+      expect(traceUpdateCall).toBeDefined()
+      const body = JSON.parse(traceUpdateCall![1].body as string)
+      expect(body.status).toBe('COMPLETED')
     })
   })
 

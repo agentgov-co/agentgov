@@ -81,8 +81,8 @@ setupErrorHandler(fastify)
 await registerRoutes(fastify)
 
 // Cron jobs and graceful shutdown
-const retentionJob = setupCron(fastify)
-setupShutdown(fastify, retentionJob)
+const cronJobs = setupCron(fastify)
+setupShutdown(fastify, cronJobs)
 
 // Start server
 const port = parseInt(process.env.PORT || process.env.API_PORT || '3001', 10)
