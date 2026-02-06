@@ -18,6 +18,7 @@ import rawBody from 'fastify-raw-body'
 import cron from 'node-cron'
 import { createHash } from 'crypto'
 import authPlugin from './plugins/auth.js'
+import csrfPlugin from './plugins/csrf.js'
 import { require2FAForPrivilegedRoles } from './middleware/require-2fa.js'
 import websocketPlugin from './plugins/websocket.js'
 import { registerRoutes } from './routes/index.js'
@@ -77,7 +78,7 @@ await fastify.register(cors, {
   origin: nodeEnv === 'production' ? allowedOrigins : allowedOrigins, // Always validate origins
   credentials: true,
   methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-ID'],
+  allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-ID', 'X-CSRF-Token'],
 })
 
 // Raw body parsing for webhook signature verification
@@ -180,6 +181,9 @@ await fastify.register(rateLimit, {
 
 // Auth plugin (Better Auth)
 await fastify.register(authPlugin)
+
+// CSRF protection for session-authenticated mutating requests
+await fastify.register(csrfPlugin)
 
 // 2FA enforcement for privileged roles (OWNER/ADMIN)
 // Must be registered after auth plugin so request.user and request.organization are populated

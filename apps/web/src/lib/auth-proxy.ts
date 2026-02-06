@@ -1,5 +1,5 @@
 /** Headers allowed to be forwarded from client to API backend */
-export const ALLOWED_HEADERS = ['content-type', 'cookie', 'accept', 'accept-language', 'user-agent', 'origin', 'referer']
+export const ALLOWED_HEADERS = ['content-type', 'cookie', 'accept', 'accept-language', 'user-agent', 'origin', 'referer', 'x-csrf-token']
 
 /** Filter incoming request headers through the whitelist and set X-Forwarded-For (first IP only) */
 export function filterHeaders(incomingHeaders: { get(name: string): string | null }): Headers {

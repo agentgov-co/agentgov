@@ -2,7 +2,7 @@ import { NextRequest, NextResponse } from 'next/server'
 
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
-const ALLOWED_HEADERS = ['content-type', 'cookie', 'accept', 'accept-language', 'user-agent']
+const ALLOWED_HEADERS = ['content-type', 'cookie', 'accept', 'accept-language', 'user-agent', 'x-csrf-token', 'origin', 'referer']
 
 async function handler(request: NextRequest): Promise<NextResponse> {
   // Extract the proxied path from /api/proxy/...
