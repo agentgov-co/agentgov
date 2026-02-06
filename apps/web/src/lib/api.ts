@@ -51,6 +51,15 @@ export function sanitizeApiError(status: number, serverMessage?: string): string
 // Authenticated API (uses session cookies)
 // ============================================
 
+// Custom error for 2FA requirement
+export class TwoFactorRequiredError extends Error {
+  code = '2FA_REQUIRED' as const
+  constructor() {
+    super('Two-factor authentication is required. Please enable 2FA in your account settings.')
+    this.name = 'TwoFactorRequiredError'
+  }
+}
+
 async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options
 
@@ -67,6 +76,16 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+
+    // Handle 2FA requirement - redirect to settings
+    if (response.status === 403 && error.code === '2FA_REQUIRED') {
+      // Only redirect on client-side
+      if (typeof window !== 'undefined') {
+        window.location.href = '/dashboard/settings?tab=security&setup2fa=true'
+      }
+      throw new TwoFactorRequiredError()
+    }
+
     throw new Error(sanitizeApiError(response.status, error.message || error.error))
   }
 
