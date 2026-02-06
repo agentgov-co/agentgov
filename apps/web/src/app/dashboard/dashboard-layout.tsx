@@ -14,7 +14,6 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useProjects } from "@/hooks/use-projects";
-import { TwoFactorRequiredError } from "@/lib/api";
 import { SelectedProjectContext } from "@/hooks/use-selected-project";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-provider";
@@ -57,7 +56,7 @@ export function DashboardLayoutClient({
     organization,
     signOut,
   } = useAuth();
-  const { data: projects, error: projectsError } = useProjects();
+  const { data: projects } = useProjects();
   const [manuallySelectedId, setManuallySelectedId] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
@@ -126,13 +125,13 @@ export function DashboardLayoutClient({
     );
   }
 
-  // Check if 2FA is required - don't block, allow access to settings
-  const is2FARequired = projectsError instanceof TwoFactorRequiredError ||
-    (projectsError?.message?.includes('Two-factor authentication') ?? false);
+  // Check if user is privileged role (owner/admin) without 2FA enabled
+  const isPrivilegedWithout2FA =
+    (organization?.role === 'owner' || organization?.role === 'admin') &&
+    user?.twoFactorEnabled === false;
 
   // Show loader while org is loading, or while projects are loading (org exists but data not yet fetched)
-  // Don't block if 2FA is required - user needs to access settings to enable it
-  if (isOrgLoading || (organization && !projects && !is2FARequired)) {
+  if (isOrgLoading || (organization && !projects)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <LogoLoader size={48} />
@@ -435,7 +434,7 @@ export function DashboardLayoutClient({
         <UsageWarning />
 
         {/* 2FA Required Banner */}
-        {is2FARequired && (
+        {isPrivilegedWithout2FA && (
           <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
             <div className="flex items-center justify-between max-w-7xl mx-auto">
               <div className="flex items-center gap-3">
