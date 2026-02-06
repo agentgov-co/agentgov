@@ -216,6 +216,15 @@ function ProjectCard({ project }: { project: Project }): React.JSX.Element {
   const deleteProject = useDeleteProject()
   const { selectedProjectId, setSelectedProjectId } = useSelectedProject()
   const isSelected = selectedProjectId === project.id
+  const [copiedId, setCopiedId] = useState(false)
+
+  const copyProjectId = (e: React.MouseEvent): void => {
+    e.stopPropagation()
+    navigator.clipboard.writeText(project.id)
+    setCopiedId(true)
+    toast.success('Project ID copied')
+    setTimeout(() => setCopiedId(false), 2000)
+  }
 
   return (
     <div
@@ -246,6 +255,18 @@ function ProjectCard({ project }: { project: Project }): React.JSX.Element {
           <p className="text-sm text-black/50 truncate">
             {project.description || 'No description'}
           </p>
+          <div className="flex items-center gap-1.5 mt-1">
+            <span className="text-xs text-black/40">ID:</span>
+            <code className="text-xs font-mono text-black/50 truncate">{project.id}</code>
+            <button
+              type="button"
+              onClick={copyProjectId}
+              className="shrink-0 p-0.5 rounded hover:bg-black/5 text-black/30 hover:text-black/60 transition-colors"
+              aria-label="Copy project ID"
+            >
+              {copiedId ? <Check className="h-3 w-3" /> : <Copy className="h-3 w-3" />}
+            </button>
+          </div>
         </div>
         <DropdownMenu>
           <DropdownMenuTrigger asChild onClick={(e) => e.stopPropagation()}>
