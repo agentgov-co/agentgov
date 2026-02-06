@@ -60,7 +60,7 @@ export interface AgentGovExporterConfig {
 }
 
 export interface ExportErrorContext {
-  operation: 'createTrace' | 'createSpan' | 'createSpanBatch' | 'updateSpan'
+  operation: 'createTrace' | 'createSpan' | 'createSpanBatch' | 'updateSpan' | 'updateTrace'
   externalId: string
   itemType: 'trace' | 'span'
 }
@@ -169,15 +169,29 @@ export class AgentGovExporter implements TracingExporter {
 
     if (newSpans.length === 0) {
       this.log('All spans already exported, skipping')
-      return
-    }
-
-    // Use batch endpoint for multiple new spans (more efficient)
-    if (this.batchThreshold > 0 && newSpans.length >= this.batchThreshold) {
+    } else if (this.batchThreshold > 0 && newSpans.length >= this.batchThreshold) {
+      // Use batch endpoint for multiple new spans (more efficient)
       await this.exportSpanBatch(newSpans, agTraceId, signal)
     } else {
       // Export spans individually
       await Promise.all(newSpans.map(span => this.exportSpan(span, agTraceId, signal)))
+    }
+
+    // Finalize trace if all spans are terminal
+    const allSpansTerminal = spans.length > 0 && spans.every(s => s.endedAt || s.error)
+    if (allSpansTerminal) {
+      const hasErrors = spans.some(s => s.error)
+      const status = hasErrors ? 'FAILED' : 'COMPLETED'
+      try {
+        await this.client.updateTrace(agTraceId, { status })
+        this.log(`Trace ${agTraceId} marked as ${status}`)
+      } catch (error) {
+        this.handleError(error, {
+          operation: 'updateTrace',
+          externalId: externalTraceId,
+          itemType: 'trace'
+        })
+      }
     }
   }
 

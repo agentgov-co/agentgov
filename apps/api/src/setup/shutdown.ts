@@ -4,12 +4,14 @@ import { flushSentry } from '../lib/sentry.js'
 import { closeRedis } from '../lib/redis.js'
 import { prisma, closePool } from '../lib/prisma.js'
 
-export function setupShutdown(fastify: FastifyInstance, retentionJob: ScheduledTask): void {
+export function setupShutdown(fastify: FastifyInstance, cronJobs: ScheduledTask[]): void {
   const signals = ['SIGINT', 'SIGTERM']
   signals.forEach(signal => {
     process.on(signal, async () => {
       fastify.log.info(`Received ${signal}, shutting down...`)
-      retentionJob.stop()
+      for (const job of cronJobs) {
+        job.stop()
+      }
       await fastify.close()
       await flushSentry()
       await closeRedis()
