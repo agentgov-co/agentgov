@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState } from "react";
+import React, { useState, useEffect } from "react";
 import Link from "next/link";
 import { Sparkles, X } from "lucide-react";
 import { useAuth } from "@/lib/auth-provider";
@@ -9,10 +9,19 @@ import { Logo } from "@/components/logo";
 export function HeaderNav(): React.JSX.Element {
   const { isAuthenticated, isLoading } = useAuth();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+  const [hasMounted, setHasMounted] = useState(false);
 
-  // Only show authenticated state after loading completes to avoid hydration mismatch
-  // Server always renders "Get Started", client updates after auth check
-  const showDashboard = !isLoading && isAuthenticated;
+  // Defer auth-dependent rendering until after hydration.
+  // The page is force-static (built without a session), so the server HTML always
+  // shows "Get Started". Without hasMounted, better-auth's useSession() could
+  // resolve from cookies synchronously on the client, causing a hydration mismatch.
+  // Using rAF callback (not direct setState) to satisfy react-hooks/set-state-in-effect.
+  useEffect(() => {
+    const id = requestAnimationFrame(() => setHasMounted(true));
+    return () => cancelAnimationFrame(id);
+  }, []);
+
+  const showDashboard = hasMounted && !isLoading && isAuthenticated;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
