@@ -1,6 +1,6 @@
 "use client";
 
-import { useState, useMemo, useCallback, useEffect } from "react";
+import { useState, useMemo, useCallback, useEffect, useSyncExternalStore } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { ChevronDown, Check, LogOut, Menu, Sparkles, ShieldAlert } from "lucide-react";
@@ -57,12 +57,24 @@ export function DashboardLayoutClient({
     signOut,
   } = useAuth();
   const { data: projects } = useProjects();
-  const [manuallySelectedId, setManuallySelectedId] = useState<string | null>(
-    () => {
-      if (typeof window === "undefined") return null;
-      return localStorage.getItem("selectedProjectId");
+
+  // Use useSyncExternalStore to read from localStorage without hydration mismatch
+  const storedProjectId = useSyncExternalStore(
+    (callback) => {
+      window.addEventListener("storage", callback);
+      return () => window.removeEventListener("storage", callback);
     },
+    () => localStorage.getItem("selectedProjectId"),
+    () => null, // server snapshot — avoids hydration mismatch
   );
+
+  const [manuallySelectedId, setManuallySelectedId] = useState<string | null>(
+    null,
+  );
+
+  // Sync localStorage value into local state (only on mount / storage changes)
+  const resolvedSelectedId = manuallySelectedId ?? storedProjectId;
+
   const [mobileMenuOpen, setMobileMenuOpen] = useState(false);
 
   // All hooks must be called before any conditional returns
@@ -79,13 +91,13 @@ export function DashboardLayoutClient({
   // If not, fall back to first project
   const selectedProjectId = useMemo(() => {
     if (
-      manuallySelectedId &&
-      projects?.some((p) => p.id === manuallySelectedId)
+      resolvedSelectedId &&
+      projects?.some((p) => p.id === resolvedSelectedId)
     ) {
-      return manuallySelectedId;
+      return resolvedSelectedId;
     }
     return projects?.[0]?.id ?? null;
-  }, [manuallySelectedId, projects]);
+  }, [resolvedSelectedId, projects]);
 
   const selectedProject = useMemo(
     () => projects?.find((p) => p.id === selectedProjectId),
@@ -192,7 +204,6 @@ export function DashboardLayoutClient({
                             variant="outline"
                             size="sm"
                             className="gap-2 h-9 w-full justify-start"
-                            suppressHydrationWarning
                             aria-label="Select project"
                           >
                             {selectedProject && (
@@ -311,7 +322,6 @@ export function DashboardLayoutClient({
                       variant="outline"
                       size="sm"
                       className="gap-2 h-9"
-                      suppressHydrationWarning
                       aria-label="Select project"
                     >
                       {selectedProject && (
@@ -362,7 +372,6 @@ export function DashboardLayoutClient({
                 <Button
                   variant="ghost"
                   className="h-9 gap-2 px-2"
-                  suppressHydrationWarning
                 >
                   <div className="w-7 h-7 rounded-full bg-linear-to-br from-blue-500 to-purple-600 flex items-center justify-center">
                     <span className="text-white text-xs font-medium">
