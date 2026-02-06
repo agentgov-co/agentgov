@@ -10,7 +10,6 @@ if (!envResult.valid) {
 
 import Fastify from 'fastify'
 import authPlugin from './plugins/auth.js'
-import { require2FAForPrivilegedRoles } from './middleware/require-2fa.js'
 import websocketPlugin from './plugins/websocket.js'
 import { registerRoutes } from './routes/index.js'
 import { prisma } from './lib/prisma.js'
@@ -56,15 +55,16 @@ await setupRateLimit(fastify)
 await fastify.register(authPlugin)
 
 // 2FA enforcement for privileged roles (owner/admin)
-// Must be registered after auth plugin so request.user and request.organization are populated
-const EXEMPT_2FA_PATHS = ['/api/auth', '/health', '/docs', '/metrics']
-fastify.addHook('onRequest', async (request, reply) => {
-  if (process.env.NODE_ENV !== 'production') return
-  if (EXEMPT_2FA_PATHS.some(p => request.url.startsWith(p))) {
-    return
-  }
-  return require2FAForPrivilegedRoles(request, reply)
-})
+// Disabled: Now showing warning banner on frontend instead of blocking
+// Users can still access the app but will see a warning to enable 2FA
+// const EXEMPT_2FA_PATHS = ['/api/auth', '/health', '/docs', '/metrics']
+// fastify.addHook('onRequest', async (request, reply) => {
+//   if (process.env.NODE_ENV !== 'production') return
+//   if (EXEMPT_2FA_PATHS.some(p => request.url.startsWith(p))) {
+//     return
+//   }
+//   return require2FAForPrivilegedRoles(request, reply)
+// })
 
 // WebSocket plugin
 await fastify.register(websocketPlugin)
