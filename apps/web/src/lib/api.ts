@@ -730,3 +730,20 @@ export const complianceApi = {
     return fetchAuthApi<ComplianceStats>(`/v1/compliance/stats?${params}`)
   },
 }
+
+// ============================================
+// WebSocket API
+// ============================================
+
+export interface WsTicket {
+  ticket: string
+}
+
+export const wsApi = {
+  /** Get a one-time WebSocket auth ticket (valid 30s) */
+  getTicket: (projectId: string) =>
+    fetchAuthApi<WsTicket>('/v1/ws/ticket', {
+      method: 'POST',
+      body: { projectId },
+    }),
+}
