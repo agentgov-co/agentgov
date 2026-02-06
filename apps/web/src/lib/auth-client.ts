@@ -2,12 +2,11 @@ import { createAuthClient } from 'better-auth/react'
 import { organizationClient, twoFactorClient } from 'better-auth/client/plugins'
 
 // Use relative URL to go through Next.js proxy (rewrites in next.config.ts)
-// This ensures cookies are set on the frontend domain
+// This ensures cookies are set on the frontend domain and avoids hydration mismatch
 const getBaseURL = (): string => {
-  if (typeof window !== 'undefined') {
-    return window.location.origin // Use frontend domain for auth
-  }
-  return process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+  // Return empty string for relative URLs — works on both server and client
+  // Next.js rewrites handle proxying /api/auth/* to the API server
+  return ''
 }
 
 export const authClient = createAuthClient({
