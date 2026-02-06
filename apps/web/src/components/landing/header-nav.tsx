@@ -7,8 +7,12 @@ import { useAuth } from "@/lib/auth-provider";
 import { Logo } from "@/components/logo";
 
 export function HeaderNav(): React.JSX.Element {
-  const { isAuthenticated } = useAuth();
+  const { isAuthenticated, isLoading } = useAuth();
   const [bannerDismissed, setBannerDismissed] = useState(false);
+
+  // Only show authenticated state after loading completes to avoid hydration mismatch
+  // Server always renders "Get Started", client updates after auth check
+  const showDashboard = !isLoading && isAuthenticated;
 
   return (
     <header className="fixed top-0 left-0 right-0 z-50">
@@ -85,18 +89,18 @@ export function HeaderNav(): React.JSX.Element {
             <Link
               href="/login"
               className={`hidden sm:block text-sm text-black/60 hover:text-black transition-colors ${
-                isAuthenticated ? "invisible" : ""
+                showDashboard ? "invisible" : ""
               }`}
-              tabIndex={isAuthenticated ? -1 : undefined}
-              aria-hidden={isAuthenticated || undefined}
+              tabIndex={showDashboard ? -1 : undefined}
+              aria-hidden={showDashboard || undefined}
             >
               Log in
             </Link>
             <Link
-              href={isAuthenticated ? "/dashboard" : "/register"}
+              href={showDashboard ? "/dashboard" : "/register"}
               className="min-w-[100px] text-center px-3 sm:px-4 py-2 bg-[#7C3AED] text-white rounded-lg text-sm font-medium hover:bg-[#7C3AED]/90 transition-colors"
             >
-              {isAuthenticated ? "Dashboard" : "Get Started"}
+              {showDashboard ? "Dashboard" : "Get Started"}
             </Link>
           </div>
         </nav>
