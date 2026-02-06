@@ -3,7 +3,7 @@
 import { useState, useMemo, useCallback, useEffect } from "react";
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { ChevronDown, Check, LogOut, Menu, Sparkles } from "lucide-react";
+import { ChevronDown, Check, LogOut, Menu, Sparkles, ShieldAlert } from "lucide-react";
 import { Logo, LogoLoader } from "@/components/logo";
 import {
   DropdownMenu,
@@ -433,6 +433,26 @@ export function DashboardLayoutClient({
 
         {/* Usage Warning Banner */}
         <UsageWarning />
+
+        {/* 2FA Required Banner */}
+        {is2FARequired && (
+          <div className="bg-amber-50 border-b border-amber-200 px-4 py-3">
+            <div className="flex items-center justify-between max-w-7xl mx-auto">
+              <div className="flex items-center gap-3">
+                <ShieldAlert className="h-5 w-5 text-amber-600" />
+                <p className="text-sm text-amber-800">
+                  Two-factor authentication is required for your role. Please enable 2FA to access all features.
+                </p>
+              </div>
+              <Link
+                href="/dashboard/settings?tab=security"
+                className="text-sm font-medium text-amber-700 hover:text-amber-900 underline"
+              >
+                Enable 2FA
+              </Link>
+            </div>
+          </div>
+        )}
 
         {/* Main Content */}
         <div className="flex-1 flex">{children}</div>

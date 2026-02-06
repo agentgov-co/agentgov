@@ -77,12 +77,8 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
 
-    // Handle 2FA requirement - redirect to settings
+    // Handle 2FA requirement - throw error without redirect (handled in dashboard-layout)
     if (response.status === 403 && error.code === '2FA_REQUIRED') {
-      // Only redirect on client-side
-      if (typeof window !== 'undefined') {
-        window.location.href = '/dashboard/settings?tab=security&setup2fa=true'
-      }
       throw new TwoFactorRequiredError()
     }
 
