@@ -255,9 +255,10 @@ export const auth = betterAuth({
       secure: process.env.NODE_ENV === 'production',
       path: '/',
     },
-    // Cross-origin settings for OAuth
+    // Cross-subdomain cookies for api.agentgov.co ↔ www.agentgov.co
     crossSubDomainCookies: {
-      enabled: false,
+      enabled: process.env.NODE_ENV === 'production',
+      domain: process.env.COOKIE_DOMAIN || undefined, // .agentgov.co in production
     },
   },
 
