@@ -14,6 +14,7 @@ import {
 } from "@/components/ui/dropdown-menu";
 import { Button } from "@/components/ui/button";
 import { useProjects } from "@/hooks/use-projects";
+import { TwoFactorRequiredError } from "@/lib/api";
 import { SelectedProjectContext } from "@/hooks/use-selected-project";
 import { cn } from "@/lib/utils";
 import { useAuth } from "@/lib/auth-provider";
@@ -56,7 +57,7 @@ export function DashboardLayoutClient({
     organization,
     signOut,
   } = useAuth();
-  const { data: projects } = useProjects();
+  const { data: projects, error: projectsError } = useProjects();
   const [manuallySelectedId, setManuallySelectedId] = useState<string | null>(
     () => {
       if (typeof window === "undefined") return null;
@@ -125,8 +126,13 @@ export function DashboardLayoutClient({
     );
   }
 
+  // Check if 2FA is required - don't block, allow access to settings
+  const is2FARequired = projectsError instanceof TwoFactorRequiredError ||
+    (projectsError?.message?.includes('Two-factor authentication') ?? false);
+
   // Show loader while org is loading, or while projects are loading (org exists but data not yet fetched)
-  if (isOrgLoading || (organization && !projects)) {
+  // Don't block if 2FA is required - user needs to access settings to enable it
+  if (isOrgLoading || (organization && !projects && !is2FARequired)) {
     return (
       <div className="min-h-screen flex items-center justify-center bg-neutral-50">
         <LogoLoader size={48} />
