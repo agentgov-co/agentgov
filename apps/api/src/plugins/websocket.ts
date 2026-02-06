@@ -78,11 +78,19 @@ const websocketPlugin: FastifyPluginAsync = async (fastify) => {
       ip: request.ip,
     }
 
+    const ticketKey = `ws:ticket:${ticket}`
     await redis.set(
-      `ws:ticket:${ticket}`,
+      ticketKey,
       JSON.stringify(ticketData),
       'EX',
       WS_TICKET_TTL
+    )
+
+    // Verify write succeeded (debug — remove once WS auth issue is resolved)
+    const verify = await redis.get(ticketKey)
+    fastify.log.info(
+      { ticketKey, stored: verify !== null, ttl: WS_TICKET_TTL },
+      '[WS] Ticket created'
     )
 
     return { ticket }
@@ -169,11 +177,21 @@ const websocketPlugin: FastifyPluginAsync = async (fastify) => {
 
           // Atomically get and delete ticket (one-time use via Lua script)
           const ticketKey = `ws:ticket:${data.ticket}`
+
+          // Debug: check if key exists before consuming it
+          const existsBeforeEval = await redis.exists(ticketKey)
+          const ttlBeforeEval = existsBeforeEval ? await redis.ttl(ticketKey) : -2
+
           const ticketJson = await redis.eval(
             "local v = redis.call('GET', KEYS[1]); if v then redis.call('DEL', KEYS[1]); end; return v;",
             1,
             ticketKey
           ) as string | null
+
+          fastify.log.info(
+            { ticketKey, existsBeforeEval, ttlBeforeEval, evalResult: ticketJson !== null },
+            '[WS] Ticket lookup'
+          )
 
           if (!ticketJson) {
             socket.send(JSON.stringify({
