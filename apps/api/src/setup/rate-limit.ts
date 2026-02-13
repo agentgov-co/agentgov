@@ -10,6 +10,8 @@ export async function setupRateLimit(fastify: FastifyInstance): Promise<void> {
     timeWindow: '1 minute',
     // Use Redis for distributed rate limiting if available
     redis: redis || undefined,
+    // When Redis is down, allow requests through instead of crashing
+    skipOnError: true,
     keyGenerator: (request) => {
       // Use hashed API key prefix if present, otherwise IP
       const authHeader = request.headers.authorization
