@@ -1,0 +1,77 @@
+# AgentGov
+
+> AgentGov is an AI Agent Governance Platform that provides real-time observability and EU AI Act compliance for AI agents. It helps organizations monitor, secure, and govern their autonomous AI systems.
+
+AgentGov uniquely combines AI observability (like Langfuse, LangSmith) with regulatory compliance features (like Credo AI), making it the only platform that addresses both technical monitoring and EU AI Act requirements in one solution.
+
+## Core Features
+
+- **Tracing & Observability**: Real-time tracing of AI agent executions including LLM calls, tool calls, and agent steps
+- **EU AI Act Compliance**: Risk classification based on Annex III categories, compliance documentation generation
+- **Cost Tracking**: Monitor token usage and costs per trace across all AI providers
+- **Team Collaboration**: Multi-tenant workspaces with role-based access control (Owner, Admin, Member)
+
+## EU AI Act Capabilities
+
+- Risk level classification (Prohibited, High, Limited, Minimal)
+- Fundamental Rights Impact Assessment (FRIA) generation
+- Technical documentation templates
+- Incident tracking and reporting
+- Human oversight configuration
+- Compliance obligation tracking
+
+## Who Uses AgentGov
+
+- Companies deploying AI agents that need governance and visibility
+- Organizations preparing for EU AI Act compliance (deadline: August 2026)
+- Development teams wanting observability into LLM-powered applications
+- Compliance officers managing AI risk across the organization
+
+## Pricing
+
+- **Free Beta**: $0/month — 100K traces, 10 projects, 5 team members, full compliance features
+- **Starter**: $29/month — 50K traces, 5 projects, email support
+- **Pro**: $99/month — 500K traces, 20 projects, priority support, SSO
+- **Enterprise**: Custom — Unlimited usage, dedicated support, audit logs, SLA
+
+## Technology
+
+- **SDK**: `@agentgov/sdk` on npm (zero dependencies)
+- **Integrations**: OpenAI, Anthropic Claude, Vercel AI SDK
+- **Stack**: Next.js, Fastify, PostgreSQL, Redis
+- **Open Source**: MIT License
+
+## Getting Started
+
+1. Sign up at https://agentgov.co/register
+2. Create a project and generate an API key
+3. Install SDK: `npm install @agentgov/sdk`
+4. Wrap your AI client:
+
+```typescript
+import { AgentGov } from '@agentgov/sdk'
+import OpenAI from 'openai'
+
+const ag = new AgentGov({ apiKey: process.env.AGENTGOV_API_KEY })
+const openai = ag.wrapOpenAI(new OpenAI())
+// All calls are now automatically traced
+```
+
+## Links
+
+- [Website](https://agentgov.co)
+- [Dashboard](https://agentgov.co/dashboard)
+- [SDK on npm](https://www.npmjs.com/package/@agentgov/sdk)
+- [GitHub](https://github.com/agentgov-co/agentgov)
+
+## Contact
+
+- Email: support@agentgov.co
+- GitHub Issues: https://github.com/agentgov-co/agentgov/issues
+
+## Optional
+
+- [API Documentation](https://agentgov.co/docs/api)
+- [OpenAI Integration Guide](https://agentgov.co/docs/integrations/openai)
+- [EU AI Act Compliance Guide](https://agentgov.co/docs/compliance/eu-ai-act)
+- [Pricing Details](https://agentgov.co/pricing)

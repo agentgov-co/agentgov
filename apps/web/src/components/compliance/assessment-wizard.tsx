@@ -1,21 +1,27 @@
-'use client'
+"use client";
 
-import React, { useState, useEffect, useCallback, useMemo, useRef } from 'react'
-import { useRouter } from 'next/navigation'
-import { Button } from '@/components/ui/button'
-import { Input } from '@/components/ui/input'
-import { Label } from '@/components/ui/label'
-import { Textarea } from '@/components/ui/textarea'
+import React, {
+  useState,
+  useEffect,
+  useCallback,
+  useMemo,
+  useRef,
+} from "react";
+import { useRouter } from "next/navigation";
+import { Button } from "@/components/ui/button";
+import { Input } from "@/components/ui/input";
+import { Label } from "@/components/ui/label";
+import { Textarea } from "@/components/ui/textarea";
 import {
   Select,
   SelectContent,
   SelectItem,
   SelectTrigger,
   SelectValue,
-} from '@/components/ui/select'
-import { useProjects } from '@/hooks/use-projects'
-import { useSubmitAssessment } from '@/hooks/use-compliance'
-import { toast } from 'sonner'
+} from "@/components/ui/select";
+import { useProjects } from "@/hooks/use-projects";
+import { useSubmitAssessment } from "@/hooks/use-compliance";
+import { toast } from "sonner";
 import {
   AlertTriangle,
   CheckCircle2,
@@ -25,53 +31,93 @@ import {
   AlertOctagon,
   Info,
   FileText,
-  Trash2
-} from 'lucide-react'
-import { cn } from '@/lib/utils'
-import type { AssessmentWizardData, RiskLevel, AnnexIIICategory } from '@/lib/api'
+  Trash2,
+} from "lucide-react";
+import { cn } from "@/lib/utils";
+import type {
+  AssessmentWizardData,
+  RiskLevel,
+  AnnexIIICategory,
+} from "@/lib/api";
 
 const STEPS = [
-  { number: 1, title: 'Basic Info', description: 'System identification' },
-  { number: 2, title: 'Use Case', description: 'Annex III categories' },
-  { number: 3, title: 'Deployment', description: 'Context and scale' },
-  { number: 4, title: 'Data & Impact', description: 'Data processing' },
-  { number: 5, title: 'FRIA', description: 'Fundamental rights' },
-  { number: 6, title: 'Result', description: 'Risk classification' },
-  { number: 7, title: 'Next Steps', description: 'Compliance roadmap' },
-]
+  { number: 1, title: "Basic Info", description: "System identification" },
+  { number: 2, title: "Use Case", description: "Annex III categories" },
+  { number: 3, title: "Deployment", description: "Context and scale" },
+  { number: 4, title: "Data & Impact", description: "Data processing" },
+  { number: 5, title: "FRIA", description: "Fundamental rights" },
+  { number: 6, title: "Result", description: "Risk classification" },
+  { number: 7, title: "Next Steps", description: "Compliance roadmap" },
+];
 
-const ANNEX_III_CATEGORIES: { value: AnnexIIICategory; label: string; description: string }[] = [
-  { value: 'biometrics', label: 'Biometric Identification', description: 'Remote biometric identification systems' },
-  { value: 'critical_infrastructure', label: 'Critical Infrastructure', description: 'Safety components in critical infrastructure' },
-  { value: 'education', label: 'Education & Training', description: 'Access to education or vocational training' },
-  { value: 'employment', label: 'Employment', description: 'Recruitment, management, or worker decisions' },
-  { value: 'essential_services', label: 'Essential Services', description: 'Access to essential services (credit, benefits)' },
-  { value: 'law_enforcement', label: 'Law Enforcement', description: 'Law enforcement applications' },
-  { value: 'migration', label: 'Migration & Border', description: 'Migration, asylum, and border control' },
-  { value: 'justice', label: 'Justice & Democracy', description: 'Administration of justice' },
-]
+const ANNEX_III_CATEGORIES: {
+  value: AnnexIIICategory;
+  label: string;
+  description: string;
+}[] = [
+  {
+    value: "biometrics",
+    label: "Biometric Identification",
+    description: "Remote biometric identification systems",
+  },
+  {
+    value: "critical_infrastructure",
+    label: "Critical Infrastructure",
+    description: "Safety components in critical infrastructure",
+  },
+  {
+    value: "education",
+    label: "Education & Training",
+    description: "Access to education or vocational training",
+  },
+  {
+    value: "employment",
+    label: "Employment",
+    description: "Recruitment, management, or worker decisions",
+  },
+  {
+    value: "essential_services",
+    label: "Essential Services",
+    description: "Access to essential services (credit, benefits)",
+  },
+  {
+    value: "law_enforcement",
+    label: "Law Enforcement",
+    description: "Law enforcement applications",
+  },
+  {
+    value: "migration",
+    label: "Migration & Border",
+    description: "Migration, asylum, and border control",
+  },
+  {
+    value: "justice",
+    label: "Justice & Democracy",
+    description: "Administration of justice",
+  },
+];
 
 const PROHIBITED_FIELDS = [
-  'usesSocialScoring',
-  'usesBiometricIdentification',
-  'usesEmotionRecognition',
-  'usesPredictivePolicing',
-  'usesSubliminalManipulation',
-  'exploitsVulnerabilities',
-] as const
+  "usesSocialScoring",
+  "usesBiometricIdentification",
+  "usesEmotionRecognition",
+  "usesPredictivePolicing",
+  "usesSubliminalManipulation",
+  "exploitsVulnerabilities",
+] as const;
 
-const DRAFT_KEY = 'assessment_wizard_draft'
+const DRAFT_KEY = "assessment_wizard_draft";
 
 interface WizardState extends Partial<AssessmentWizardData> {
-  projectId: string
+  projectId: string;
 }
 
 const defaultFormData: WizardState = {
-  projectId: '',
-  name: '',
-  description: '',
-  version: '',
-  useCaseDescription: '',
+  projectId: "",
+  name: "",
+  description: "",
+  version: "",
+  useCaseDescription: "",
   annexIIICategory: null,
   usesBiometricIdentification: false,
   usesSocialScoring: false,
@@ -81,10 +127,10 @@ const defaultFormData: WizardState = {
   exploitsVulnerabilities: false,
   deployedInEU: true,
   affectsEUCitizens: true,
-  intendedPurpose: '',
-  intendedUsers: '',
-  deploymentScale: 'limited',
-  automationLevel: 'semi_automated',
+  intendedPurpose: "",
+  intendedUsers: "",
+  deploymentScale: "limited",
+  automationLevel: "semi_automated",
   processesPersonalData: false,
   processesSensitiveData: false,
   usesProfilingOrScoring: false,
@@ -92,29 +138,32 @@ const defaultFormData: WizardState = {
   hasSafetyImpact: false,
   affectsVulnerableGroups: false,
   dataCategories: [],
-  friaAffectedGroups: '',
-  friaPotentialDiscrimination: '',
-  friaFundamentalRightsImpact: '',
-  friaMitigationMeasures: '',
-}
+  friaAffectedGroups: "",
+  friaPotentialDiscrimination: "",
+  friaFundamentalRightsImpact: "",
+  friaMitigationMeasures: "",
+};
 
 function loadDraft(): { formData: WizardState; currentStep: number } | null {
   try {
-    const raw = localStorage.getItem(DRAFT_KEY)
-    if (!raw) return null
-    const parsed = JSON.parse(raw) as { formData: WizardState; currentStep: number }
-    if (parsed.formData && typeof parsed.currentStep === 'number') {
-      return parsed
+    const raw = localStorage.getItem(DRAFT_KEY);
+    if (!raw) return null;
+    const parsed = JSON.parse(raw) as {
+      formData: WizardState;
+      currentStep: number;
+    };
+    if (parsed.formData && typeof parsed.currentStep === "number") {
+      return parsed;
     }
   } catch {
     // Corrupt draft — ignore
   }
-  return null
+  return null;
 }
 
 function saveDraft(formData: WizardState, currentStep: number): void {
   try {
-    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, currentStep }))
+    localStorage.setItem(DRAFT_KEY, JSON.stringify({ formData, currentStep }));
   } catch {
     // Storage full or unavailable — ignore
   }
@@ -122,140 +171,149 @@ function saveDraft(formData: WizardState, currentStep: number): void {
 
 function clearDraft(): void {
   try {
-    localStorage.removeItem(DRAFT_KEY)
+    localStorage.removeItem(DRAFT_KEY);
   } catch {
     // Ignore
   }
 }
 
 export function AssessmentWizard(): React.JSX.Element {
-  const router = useRouter()
-  const { data: projects } = useProjects()
-  const submitAssessment = useSubmitAssessment()
+  const router = useRouter();
+  const { data: projects } = useProjects();
+  const submitAssessment = useSubmitAssessment();
 
   // Load draft once per mount — safe with React Strict Mode
-  const initialDraft = useMemo(() => loadDraft(), [])
+  const initialDraft = useMemo(() => loadDraft(), []);
 
   const [currentStep, setCurrentStep] = useState(
-    () => initialDraft?.currentStep ?? 1
-  )
+    () => initialDraft?.currentStep ?? 1,
+  );
   const [formData, setFormData] = useState<WizardState>(
-    () => initialDraft?.formData ?? { ...defaultFormData }
-  )
+    () => initialDraft?.formData ?? { ...defaultFormData },
+  );
   const [showDraftBanner, setShowDraftBanner] = useState(
-    () => initialDraft !== null
-  )
+    () => initialDraft !== null,
+  );
 
   const [assessmentResult, setAssessmentResult] = useState<{
-    riskLevel: RiskLevel
-    reasoning: string[]
-    applicableArticles: string[]
-    prohibitedReason?: string
-    systemId?: string
-  } | null>(null)
+    riskLevel: RiskLevel;
+    reasoning: string[];
+    applicableArticles: string[];
+    prohibitedReason?: string;
+    systemId?: string;
+  } | null>(null);
 
   // Auto-save to localStorage on changes (debounced by React batching)
-  const isDirty = useRef(false)
+  const isDirty = useRef(false);
   useEffect(() => {
     // Don't save result steps or empty state
-    if (currentStep >= 6 || (!formData.name && !formData.projectId)) return
-    isDirty.current = true
-    saveDraft(formData, currentStep)
-  }, [formData, currentStep])
+    if (currentStep >= 6 || (!formData.name && !formData.projectId)) return;
+    isDirty.current = true;
+    saveDraft(formData, currentStep);
+  }, [formData, currentStep]);
 
   // beforeunload warning for unsaved data
   useEffect(() => {
     const handler = (e: BeforeUnloadEvent): void => {
       if (isDirty.current && currentStep < 6) {
-        e.preventDefault()
+        e.preventDefault();
       }
-    }
-    window.addEventListener('beforeunload', handler)
-    return () => window.removeEventListener('beforeunload', handler)
-  }, [currentStep])
+    };
+    window.addEventListener("beforeunload", handler);
+    return () => window.removeEventListener("beforeunload", handler);
+  }, [currentStep]);
 
   const handleDiscardDraft = useCallback(() => {
-    clearDraft()
-    setFormData({ ...defaultFormData })
-    setCurrentStep(1)
-    setShowDraftBanner(false)
-    isDirty.current = false
-    toast.success('Draft discarded')
-  }, [])
+    clearDraft();
+    setFormData({ ...defaultFormData });
+    setCurrentStep(1);
+    setShowDraftBanner(false);
+    isDirty.current = false;
+    toast.success("Draft discarded");
+  }, []);
 
-  const updateFormData = <K extends keyof WizardState>(key: K, value: WizardState[K]): void => {
-    setFormData((prev) => ({ ...prev, [key]: value }))
-  }
+  const updateFormData = <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ): void => {
+    setFormData((prev) => ({ ...prev, [key]: value }));
+  };
 
   // Check for prohibited practices
   const hasProhibitedPractice = PROHIBITED_FIELDS.some(
-    (field) => formData[field] === true
-  )
+    (field) => formData[field] === true,
+  );
 
   // FRIA is mandatory for high-risk indicators (EU AI Act Art. 26)
-  const friaRequired = !!formData.annexIIICategory
-    || formData.hasLegalEffects === true
-    || formData.hasSafetyImpact === true
-    || formData.affectsVulnerableGroups === true
+  const friaRequired =
+    !!formData.annexIIICategory ||
+    formData.hasLegalEffects === true ||
+    formData.hasSafetyImpact === true ||
+    formData.affectsVulnerableGroups === true;
 
   const canProceed = (): boolean => {
     switch (currentStep) {
       case 1:
-        return !!formData.projectId && !!formData.name
+        return !!formData.projectId && !!formData.name;
       case 2:
-        return !!formData.useCaseDescription && !hasProhibitedPractice
+        return !!formData.useCaseDescription && !hasProhibitedPractice;
       case 3:
-        return !!formData.intendedPurpose
+        return !!formData.intendedPurpose;
       case 4:
-        return true // All optional
+        return true; // All optional
       case 5:
         // FRIA required only for high-risk indicators; optional otherwise
         if (friaRequired) {
-          return !!formData.friaAffectedGroups && !!formData.friaFundamentalRightsImpact
+          return (
+            !!formData.friaAffectedGroups &&
+            !!formData.friaFundamentalRightsImpact
+          );
         }
-        return true
+        return true;
       case 6:
-        return !!assessmentResult
+        return !!assessmentResult;
       default:
-        return true
+        return true;
     }
-  }
+  };
 
   const handleNext = async (): Promise<void> => {
     if (currentStep === 5) {
       // Submit assessment after FRIA step
       try {
-        const result = await submitAssessment.mutateAsync(formData as AssessmentWizardData)
+        const result = await submitAssessment.mutateAsync(
+          formData as AssessmentWizardData,
+        );
         setAssessmentResult({
           ...result.classification,
           systemId: result.system.id,
-        })
-        clearDraft()
-        isDirty.current = false
-        setCurrentStep(6)
+        });
+        clearDraft();
+        isDirty.current = false;
+        setCurrentStep(6);
       } catch {
-        toast.error('Failed to assess system')
+        toast.error("Failed to assess system");
       }
     } else if (currentStep < 7) {
-      setCurrentStep(currentStep + 1)
+      setCurrentStep(currentStep + 1);
     }
-  }
+  };
 
   const handleBack = (): void => {
     if (currentStep > 1) {
-      setCurrentStep(currentStep - 1)
+      setCurrentStep(currentStep - 1);
     }
-  }
+  };
 
   const handleFinish = (): void => {
-    clearDraft()
-    isDirty.current = false
+    clearDraft();
+    isDirty.current = false;
     if (assessmentResult?.systemId) {
-      router.push(`/dashboard/compliance/systems/${assessmentResult.systemId}`)
+      router.push(`/dashboard/compliance/systems/${assessmentResult.systemId}`);
     } else {
-      router.push('/dashboard/compliance')
+      router.push("/dashboard/compliance");
     }
-  }
+  };
 
   return (
     <div className="max-w-3xl mx-auto">
@@ -263,8 +321,8 @@ export function AssessmentWizard(): React.JSX.Element {
       {showDraftBanner && (
         <div className="mb-6 flex items-center justify-between gap-4 p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <div className="text-sm text-blue-800">
-            <span className="font-medium">Draft restored.</span>{' '}
-            You have unsaved progress from a previous session.
+            <span className="font-medium">Draft restored.</span> You have
+            unsaved progress from a previous session.
           </div>
           <Button
             variant="ghost"
@@ -286,14 +344,16 @@ export function AssessmentWizard(): React.JSX.Element {
               <div className="flex flex-col items-center">
                 <div
                   className={cn(
-                    'w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 shadow-sm',
+                    "w-11 h-11 rounded-full flex items-center justify-center text-sm font-semibold transition-all duration-300 shadow-sm",
                     currentStep === step.number
-                      ? 'bg-primary text-white ring-4 ring-primary/20'
+                      ? "bg-primary text-white ring-4 ring-primary/20"
                       : currentStep > step.number
-                        ? 'bg-green-500 text-white'
-                        : 'bg-black/5 text-black/40'
+                        ? "bg-green-500 text-white"
+                        : "bg-black/5 text-black/40",
                   )}
-                  aria-current={currentStep === step.number ? 'step' : undefined}
+                  aria-current={
+                    currentStep === step.number ? "step" : undefined
+                  }
                 >
                   {currentStep > step.number ? (
                     <CheckCircle2 className="h-5 w-5" />
@@ -308,8 +368,8 @@ export function AssessmentWizard(): React.JSX.Element {
               {index < STEPS.length - 1 && (
                 <div
                   className={cn(
-                    'h-0.5 w-8 sm:w-16 mx-2 transition-colors duration-300',
-                    currentStep > step.number ? 'bg-green-500' : 'bg-black/10'
+                    "h-0.5 w-8 sm:w-16 mx-2 transition-colors duration-300",
+                    currentStep > step.number ? "bg-green-500" : "bg-black/10",
                   )}
                 />
               )}
@@ -335,16 +395,29 @@ export function AssessmentWizard(): React.JSX.Element {
           />
         )}
         {currentStep === 3 && (
-          <Step3Deployment formData={formData} updateFormData={updateFormData} />
+          <Step3Deployment
+            formData={formData}
+            updateFormData={updateFormData}
+          />
         )}
         {currentStep === 4 && (
-          <Step4DataImpact formData={formData} updateFormData={updateFormData} />
+          <Step4DataImpact
+            formData={formData}
+            updateFormData={updateFormData}
+          />
         )}
         {currentStep === 5 && (
-          <Step5FRIA formData={formData} updateFormData={updateFormData} friaRequired={friaRequired} />
+          <Step5FRIA
+            formData={formData}
+            updateFormData={updateFormData}
+            friaRequired={friaRequired}
+          />
         )}
         {currentStep === 6 && assessmentResult && (
-          <Step6Result result={assessmentResult} systemName={formData.name || ''} />
+          <Step6Result
+            result={assessmentResult}
+            systemName={formData.name || ""}
+          />
         )}
         {currentStep === 7 && assessmentResult && (
           <Step7NextSteps result={assessmentResult} />
@@ -368,9 +441,9 @@ export function AssessmentWizard(): React.JSX.Element {
             disabled={!canProceed() || submitAssessment.isPending}
           >
             {submitAssessment.isPending ? (
-              'Analyzing...'
+              "Analyzing..."
             ) : currentStep === 5 ? (
-              'Analyze Risk'
+              "Analyze Risk"
             ) : (
               <>
                 Next
@@ -386,7 +459,7 @@ export function AssessmentWizard(): React.JSX.Element {
         )}
       </div>
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -398,9 +471,12 @@ function Step1BasicInfo({
   updateFormData,
   projects,
 }: {
-  formData: WizardState
-  updateFormData: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void
-  projects: { id: string; name: string }[]
+  formData: WizardState;
+  updateFormData: <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ) => void;
+  projects: { id: string; name: string }[];
 }): React.JSX.Element {
   return (
     <div className="space-y-6">
@@ -416,7 +492,7 @@ function Step1BasicInfo({
           <Label htmlFor="project">Project *</Label>
           <Select
             value={formData.projectId}
-            onValueChange={(value) => updateFormData('projectId', value)}
+            onValueChange={(value) => updateFormData("projectId", value)}
           >
             <SelectTrigger id="project">
               <SelectValue placeholder="Select a project" />
@@ -439,7 +515,7 @@ function Step1BasicInfo({
           <Input
             id="name"
             value={formData.name}
-            onChange={(e) => updateFormData('name', e.target.value)}
+            onChange={(e) => updateFormData("name", e.target.value)}
             placeholder="e.g., Customer Support Chatbot"
           />
         </div>
@@ -449,7 +525,7 @@ function Step1BasicInfo({
           <Textarea
             id="description"
             value={formData.description}
-            onChange={(e) => updateFormData('description', e.target.value)}
+            onChange={(e) => updateFormData("description", e.target.value)}
             placeholder="Brief description of what the AI system does..."
             rows={3}
           />
@@ -460,13 +536,13 @@ function Step1BasicInfo({
           <Input
             id="version"
             value={formData.version}
-            onChange={(e) => updateFormData('version', e.target.value)}
+            onChange={(e) => updateFormData("version", e.target.value)}
             placeholder="e.g., 1.0.0"
           />
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Step2UseCase({
@@ -474,16 +550,20 @@ function Step2UseCase({
   updateFormData,
   hasProhibitedPractice,
 }: {
-  formData: WizardState
-  updateFormData: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void
-  hasProhibitedPractice: boolean
+  formData: WizardState;
+  updateFormData: <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ) => void;
+  hasProhibitedPractice: boolean;
 }): React.JSX.Element {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-1">Use Case & Category</h2>
         <p className="text-black/50 text-sm">
-          Describe what your AI system does and select the relevant Annex III category.
+          Describe what your AI system does and select the relevant Annex III
+          category.
         </p>
       </div>
 
@@ -493,7 +573,9 @@ function Step2UseCase({
           <Textarea
             id="useCase"
             value={formData.useCaseDescription}
-            onChange={(e) => updateFormData('useCaseDescription', e.target.value)}
+            onChange={(e) =>
+              updateFormData("useCaseDescription", e.target.value)
+            }
             placeholder="Describe the primary use case of this AI system..."
             rows={4}
           />
@@ -506,13 +588,22 @@ function Step2UseCase({
           </p>
           <div className="grid gap-2">
             <div
+              role="button"
+              tabIndex={0}
               className={cn(
-                'p-4 border rounded-xl cursor-pointer transition-all hover:shadow-sm',
+                "p-4 border rounded-xl cursor-pointer transition-all hover:shadow-sm",
                 formData.annexIIICategory === null
-                  ? 'border-primary bg-primary/5'
-                  : 'border-black/10 hover:border-black/20'
+                  ? "border-primary bg-primary/5"
+                  : "border-black/10 hover:border-black/20",
               )}
-              onClick={() => updateFormData('annexIIICategory', null)}
+              onClick={() => updateFormData("annexIIICategory", null)}
+              onKeyDown={(e) => {
+                if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  updateFormData("annexIIICategory", null);
+                }
+              }}
+              aria-pressed={formData.annexIIICategory === null}
             >
               <div className="font-medium text-sm">None of the above</div>
               <div className="text-xs text-black/50">
@@ -522,13 +613,22 @@ function Step2UseCase({
             {ANNEX_III_CATEGORIES.map((cat) => (
               <div
                 key={cat.value}
+                role="button"
+                tabIndex={0}
                 className={cn(
-                  'p-4 border rounded-xl cursor-pointer transition-all hover:shadow-sm',
+                  "p-4 border rounded-xl cursor-pointer transition-all hover:shadow-sm",
                   formData.annexIIICategory === cat.value
-                    ? 'border-primary bg-primary/5'
-                    : 'border-black/10 hover:border-black/20'
+                    ? "border-primary bg-primary/5"
+                    : "border-black/10 hover:border-black/20",
                 )}
-                onClick={() => updateFormData('annexIIICategory', cat.value)}
+                onClick={() => updateFormData("annexIIICategory", cat.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    updateFormData("annexIIICategory", cat.value);
+                  }
+                }}
+                aria-pressed={formData.annexIIICategory === cat.value}
               >
                 <div className="font-medium text-sm">{cat.label}</div>
                 <div className="text-xs text-black/50">{cat.description}</div>
@@ -549,32 +649,32 @@ function Step2UseCase({
           <div className="space-y-2">
             <CheckboxItem
               checked={formData.usesSocialScoring || false}
-              onChange={(v) => updateFormData('usesSocialScoring', v)}
+              onChange={(v) => updateFormData("usesSocialScoring", v)}
               label="Uses social scoring by public authorities"
             />
             <CheckboxItem
               checked={formData.usesBiometricIdentification || false}
-              onChange={(v) => updateFormData('usesBiometricIdentification', v)}
+              onChange={(v) => updateFormData("usesBiometricIdentification", v)}
               label="Real-time remote biometric identification"
             />
             <CheckboxItem
               checked={formData.usesEmotionRecognition || false}
-              onChange={(v) => updateFormData('usesEmotionRecognition', v)}
+              onChange={(v) => updateFormData("usesEmotionRecognition", v)}
               label="Emotion recognition at workplace/school"
             />
             <CheckboxItem
               checked={formData.usesPredictivePolicing || false}
-              onChange={(v) => updateFormData('usesPredictivePolicing', v)}
+              onChange={(v) => updateFormData("usesPredictivePolicing", v)}
               label="Predictive policing based on profiling"
             />
             <CheckboxItem
               checked={formData.usesSubliminalManipulation || false}
-              onChange={(v) => updateFormData('usesSubliminalManipulation', v)}
+              onChange={(v) => updateFormData("usesSubliminalManipulation", v)}
               label="Subliminal manipulation techniques"
             />
             <CheckboxItem
               checked={formData.exploitsVulnerabilities || false}
-              onChange={(v) => updateFormData('exploitsVulnerabilities', v)}
+              onChange={(v) => updateFormData("exploitsVulnerabilities", v)}
               label="Exploits vulnerabilities of specific groups"
             />
           </div>
@@ -591,23 +691,26 @@ function Step2UseCase({
               Prohibited Practice Detected
             </h4>
             <p className="text-sm text-red-800">
-              This AI system involves prohibited practices under EU AI Act Article 5.
-              It cannot be registered. Please review your use case and uncheck
-              all prohibited practices to proceed.
+              This AI system involves prohibited practices under EU AI Act
+              Article 5. It cannot be registered. Please review your use case
+              and uncheck all prohibited practices to proceed.
             </p>
           </div>
         )}
       </div>
     </div>
-  )
+  );
 }
 
 function Step3Deployment({
   formData,
   updateFormData,
 }: {
-  formData: WizardState
-  updateFormData: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void
+  formData: WizardState;
+  updateFormData: <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ) => void;
 }): React.JSX.Element {
   return (
     <div className="space-y-6">
@@ -623,7 +726,7 @@ function Step3Deployment({
           <div className="p-4 border border-black/10 rounded-xl">
             <CheckboxItem
               checked={formData.deployedInEU || false}
-              onChange={(v) => updateFormData('deployedInEU', v)}
+              onChange={(v) => updateFormData("deployedInEU", v)}
               label="Deployed in the EU"
             />
             <p className="text-xs text-black/40 mt-1 ml-6">
@@ -633,7 +736,7 @@ function Step3Deployment({
           <div className="p-4 border border-black/10 rounded-xl">
             <CheckboxItem
               checked={formData.affectsEUCitizens || false}
-              onChange={(v) => updateFormData('affectsEUCitizens', v)}
+              onChange={(v) => updateFormData("affectsEUCitizens", v)}
               label="Affects EU citizens"
             />
             <p className="text-xs text-black/40 mt-1 ml-6">
@@ -647,7 +750,7 @@ function Step3Deployment({
           <Textarea
             id="purpose"
             value={formData.intendedPurpose}
-            onChange={(e) => updateFormData('intendedPurpose', e.target.value)}
+            onChange={(e) => updateFormData("intendedPurpose", e.target.value)}
             placeholder="What is the system designed to do? What decisions or recommendations does it make?"
             rows={3}
           />
@@ -658,7 +761,7 @@ function Step3Deployment({
           <Input
             id="users"
             value={formData.intendedUsers}
-            onChange={(e) => updateFormData('intendedUsers', e.target.value)}
+            onChange={(e) => updateFormData("intendedUsers", e.target.value)}
             placeholder="e.g., Customer service agents, HR managers..."
           />
         </div>
@@ -669,7 +772,10 @@ function Step3Deployment({
             <Select
               value={formData.deploymentScale}
               onValueChange={(value) =>
-                updateFormData('deploymentScale', value as WizardState['deploymentScale'])
+                updateFormData(
+                  "deploymentScale",
+                  value as WizardState["deploymentScale"],
+                )
               }
             >
               <SelectTrigger id="scale">
@@ -689,7 +795,10 @@ function Step3Deployment({
             <Select
               value={formData.automationLevel}
               onValueChange={(value) =>
-                updateFormData('automationLevel', value as WizardState['automationLevel'])
+                updateFormData(
+                  "automationLevel",
+                  value as WizardState["automationLevel"],
+                )
               }
             >
               <SelectTrigger id="automation">
@@ -705,22 +814,26 @@ function Step3Deployment({
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Step4DataImpact({
   formData,
   updateFormData,
 }: {
-  formData: WizardState
-  updateFormData: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void
+  formData: WizardState;
+  updateFormData: <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ) => void;
 }): React.JSX.Element {
   return (
     <div className="space-y-6">
       <div>
         <h2 className="text-xl font-semibold mb-1">Data & Impact Assessment</h2>
         <p className="text-black/50 text-sm">
-          Help us understand the data your system processes and its potential impact.
+          Help us understand the data your system processes and its potential
+          impact.
         </p>
       </div>
 
@@ -733,17 +846,17 @@ function Step4DataImpact({
           <div className="space-y-2">
             <CheckboxItem
               checked={formData.processesPersonalData || false}
-              onChange={(v) => updateFormData('processesPersonalData', v)}
+              onChange={(v) => updateFormData("processesPersonalData", v)}
               label="Processes personal data"
             />
             <CheckboxItem
               checked={formData.processesSensitiveData || false}
-              onChange={(v) => updateFormData('processesSensitiveData', v)}
+              onChange={(v) => updateFormData("processesSensitiveData", v)}
               label="Processes sensitive data (health, biometric, etc.)"
             />
             <CheckboxItem
               checked={formData.usesProfilingOrScoring || false}
-              onChange={(v) => updateFormData('usesProfilingOrScoring', v)}
+              onChange={(v) => updateFormData("usesProfilingOrScoring", v)}
               label="Uses profiling or scoring of individuals"
             />
           </div>
@@ -757,24 +870,24 @@ function Step4DataImpact({
           <div className="space-y-2">
             <CheckboxItem
               checked={formData.hasLegalEffects || false}
-              onChange={(v) => updateFormData('hasLegalEffects', v)}
+              onChange={(v) => updateFormData("hasLegalEffects", v)}
               label="Has legal or similar significant effects on individuals"
             />
             <CheckboxItem
               checked={formData.hasSafetyImpact || false}
-              onChange={(v) => updateFormData('hasSafetyImpact', v)}
+              onChange={(v) => updateFormData("hasSafetyImpact", v)}
               label="Has potential safety impact"
             />
             <CheckboxItem
               checked={formData.affectsVulnerableGroups || false}
-              onChange={(v) => updateFormData('affectsVulnerableGroups', v)}
+              onChange={(v) => updateFormData("affectsVulnerableGroups", v)}
               label="Affects vulnerable groups (children, elderly, disabled)"
             />
           </div>
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Step5FRIA({
@@ -782,18 +895,24 @@ function Step5FRIA({
   updateFormData,
   friaRequired,
 }: {
-  formData: WizardState
-  updateFormData: <K extends keyof WizardState>(key: K, value: WizardState[K]) => void
-  friaRequired: boolean
+  formData: WizardState;
+  updateFormData: <K extends keyof WizardState>(
+    key: K,
+    value: WizardState[K],
+  ) => void;
+  friaRequired: boolean;
 }): React.JSX.Element {
-  const requiredMark = friaRequired ? ' *' : ''
+  const requiredMark = friaRequired ? " *" : "";
 
   return (
     <div className="space-y-6">
       <div>
-        <h2 className="text-xl font-semibold mb-1">Fundamental Rights Impact Assessment</h2>
+        <h2 className="text-xl font-semibold mb-1">
+          Fundamental Rights Impact Assessment
+        </h2>
         <p className="text-black/50 text-sm">
-          Assess the impact of your AI system on fundamental rights (EU AI Act Article 26).
+          Assess the impact of your AI system on fundamental rights (EU AI Act
+          Article 26).
         </p>
       </div>
 
@@ -801,49 +920,63 @@ function Step5FRIA({
         <div className="p-4 bg-amber-50 border border-amber-200 rounded-xl">
           <p className="text-sm text-amber-800">
             <AlertTriangle className="h-4 w-4 inline mr-1.5" />
-            Your system has high-risk indicators. A Fundamental Rights Impact Assessment is
-            <strong> required</strong> under EU AI Act Article 26(1) before deployment.
+            Your system has high-risk indicators. A Fundamental Rights Impact
+            Assessment is
+            <strong> required</strong> under EU AI Act Article 26(1) before
+            deployment.
           </p>
         </div>
       ) : (
         <div className="p-4 bg-blue-50 border border-blue-200 rounded-xl">
           <p className="text-sm text-blue-800">
             <Info className="h-4 w-4 inline mr-1.5" />
-            FRIA is optional for your risk profile but recommended. You can skip this step
-            or provide partial information.
+            FRIA is optional for your risk profile but recommended. You can skip
+            this step or provide partial information.
           </p>
         </div>
       )}
 
       <div className="space-y-4">
         <div>
-          <Label htmlFor="friaAffectedGroups">Affected Population Groups{requiredMark}</Label>
+          <Label htmlFor="friaAffectedGroups">
+            Affected Population Groups{requiredMark}
+          </Label>
           <Textarea
             id="friaAffectedGroups"
-            value={formData.friaAffectedGroups || ''}
-            onChange={(e) => updateFormData('friaAffectedGroups', e.target.value)}
+            value={formData.friaAffectedGroups || ""}
+            onChange={(e) =>
+              updateFormData("friaAffectedGroups", e.target.value)
+            }
             placeholder="Describe the groups of people affected by this AI system (e.g., job applicants, patients, students)..."
             rows={3}
           />
         </div>
 
         <div>
-          <Label htmlFor="friaFundamentalRightsImpact">Impact on Fundamental Rights{requiredMark}</Label>
+          <Label htmlFor="friaFundamentalRightsImpact">
+            Impact on Fundamental Rights{requiredMark}
+          </Label>
           <Textarea
             id="friaFundamentalRightsImpact"
-            value={formData.friaFundamentalRightsImpact || ''}
-            onChange={(e) => updateFormData('friaFundamentalRightsImpact', e.target.value)}
+            value={formData.friaFundamentalRightsImpact || ""}
+            onChange={(e) =>
+              updateFormData("friaFundamentalRightsImpact", e.target.value)
+            }
             placeholder="Analyze impact on fundamental rights: dignity, privacy, non-discrimination, data protection, freedom of expression, effective remedy..."
             rows={4}
           />
         </div>
 
         <div>
-          <Label htmlFor="friaPotentialDiscrimination">Potential Discrimination Risks</Label>
+          <Label htmlFor="friaPotentialDiscrimination">
+            Potential Discrimination Risks
+          </Label>
           <Textarea
             id="friaPotentialDiscrimination"
-            value={formData.friaPotentialDiscrimination || ''}
-            onChange={(e) => updateFormData('friaPotentialDiscrimination', e.target.value)}
+            value={formData.friaPotentialDiscrimination || ""}
+            onChange={(e) =>
+              updateFormData("friaPotentialDiscrimination", e.target.value)
+            }
             placeholder="Identify potential discrimination risks across protected characteristics (gender, race, age, disability, religion, etc.)..."
             rows={3}
           />
@@ -853,15 +986,17 @@ function Step5FRIA({
           <Label htmlFor="friaMitigationMeasures">Mitigation Measures</Label>
           <Textarea
             id="friaMitigationMeasures"
-            value={formData.friaMitigationMeasures || ''}
-            onChange={(e) => updateFormData('friaMitigationMeasures', e.target.value)}
+            value={formData.friaMitigationMeasures || ""}
+            onChange={(e) =>
+              updateFormData("friaMitigationMeasures", e.target.value)
+            }
             placeholder="Describe concrete measures to mitigate identified risks (bias testing, human oversight, appeal mechanisms, etc.)..."
             rows={3}
           />
         </div>
       </div>
     </div>
-  )
+  );
 }
 
 function Step6Result({
@@ -869,48 +1004,52 @@ function Step6Result({
   systemName,
 }: {
   result: {
-    riskLevel: RiskLevel
-    reasoning: string[]
-    applicableArticles: string[]
-    prohibitedReason?: string
-  }
-  systemName: string
+    riskLevel: RiskLevel;
+    reasoning: string[];
+    applicableArticles: string[];
+    prohibitedReason?: string;
+  };
+  systemName: string;
 }): React.JSX.Element {
   const riskConfig = {
     PROHIBITED: {
-      color: 'bg-red-100 border-red-300 text-red-800',
+      color: "bg-red-100 border-red-300 text-red-800",
       icon: AlertOctagon,
-      title: 'Prohibited',
-      description: 'This AI system falls under prohibited practices and cannot be deployed in the EU.',
+      title: "Prohibited",
+      description:
+        "This AI system falls under prohibited practices and cannot be deployed in the EU.",
     },
     HIGH: {
-      color: 'bg-orange-100 border-orange-300 text-orange-800',
+      color: "bg-orange-100 border-orange-300 text-orange-800",
       icon: AlertTriangle,
-      title: 'High Risk',
-      description: 'This system requires strict compliance with EU AI Act requirements.',
+      title: "High Risk",
+      description:
+        "This system requires strict compliance with EU AI Act requirements.",
     },
     LIMITED: {
-      color: 'bg-yellow-100 border-yellow-300 text-yellow-800',
+      color: "bg-yellow-100 border-yellow-300 text-yellow-800",
       icon: Info,
-      title: 'Limited Risk',
-      description: 'This system has transparency obligations but no other specific requirements.',
+      title: "Limited Risk",
+      description:
+        "This system has transparency obligations but no other specific requirements.",
     },
     MINIMAL: {
-      color: 'bg-green-100 border-green-300 text-green-800',
+      color: "bg-green-100 border-green-300 text-green-800",
       icon: CheckCircle2,
-      title: 'Minimal Risk',
-      description: 'No specific EU AI Act obligations. Voluntary codes of conduct apply.',
+      title: "Minimal Risk",
+      description:
+        "No specific EU AI Act obligations. Voluntary codes of conduct apply.",
     },
     UNKNOWN: {
-      color: 'bg-gray-100 border-gray-300 text-gray-800',
+      color: "bg-gray-100 border-gray-300 text-gray-800",
       icon: Shield,
-      title: 'Unknown',
-      description: 'Risk level could not be determined.',
+      title: "Unknown",
+      description: "Risk level could not be determined.",
     },
-  }
+  };
 
-  const config = riskConfig[result.riskLevel]
-  const Icon = config.icon
+  const config = riskConfig[result.riskLevel];
+  const Icon = config.icon;
 
   return (
     <div className="space-y-6">
@@ -921,7 +1060,7 @@ function Step6Result({
         </p>
       </div>
 
-      <div className={cn('p-6 border-2 rounded-2xl', config.color)}>
+      <div className={cn("p-6 border-2 rounded-2xl", config.color)}>
         <div className="flex items-center gap-3 mb-3">
           <Icon className="h-8 w-8" />
           <div>
@@ -942,7 +1081,10 @@ function Step6Result({
         <h4 className="font-medium mb-2">Classification Reasoning</h4>
         <ul className="space-y-2">
           {result.reasoning.map((reason, idx) => (
-            <li key={idx} className="flex items-start gap-2 text-sm text-black/70">
+            <li
+              key={idx}
+              className="flex items-start gap-2 text-sm text-black/70"
+            >
               <span className="mt-1.5 h-1.5 w-1.5 rounded-full bg-black/30 shrink-0" />
               {reason}
             </li>
@@ -966,55 +1108,55 @@ function Step6Result({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 function Step7NextSteps({
   result,
 }: {
   result: {
-    riskLevel: RiskLevel
-    applicableArticles: string[]
-  }
+    riskLevel: RiskLevel;
+    applicableArticles: string[];
+  };
 }): React.JSX.Element {
   const getNextSteps = (riskLevel: RiskLevel): string[] => {
     switch (riskLevel) {
-      case 'PROHIBITED':
+      case "PROHIBITED":
         return [
-          'This system cannot be deployed in the EU.',
-          'Review Article 5 of the EU AI Act for prohibited practices.',
-          'Consider modifying the system to remove prohibited features.',
-          'Consult with legal counsel for guidance.',
-        ]
-      case 'HIGH':
+          "This system cannot be deployed in the EU.",
+          "Review Article 5 of the EU AI Act for prohibited practices.",
+          "Consider modifying the system to remove prohibited features.",
+          "Consult with legal counsel for guidance.",
+        ];
+      case "HIGH":
         return [
-          'Complete the obligations checklist in the system details.',
-          'Generate required compliance documentation.',
-          'Implement human oversight measures.',
-          'Prepare for conformity assessment.',
-          'Register the system in the EU database before deployment.',
-          'Set up post-market monitoring.',
-        ]
-      case 'LIMITED':
+          "Complete the obligations checklist in the system details.",
+          "Generate required compliance documentation.",
+          "Implement human oversight measures.",
+          "Prepare for conformity assessment.",
+          "Register the system in the EU database before deployment.",
+          "Set up post-market monitoring.",
+        ];
+      case "LIMITED":
         return [
-          'Implement transparency obligations (Article 50).',
-          'Ensure users know they are interacting with AI.',
-          'Label any generated/synthetic content appropriately.',
-          'Document compliance measures.',
-        ]
-      case 'MINIMAL':
+          "Implement transparency obligations (Article 50).",
+          "Ensure users know they are interacting with AI.",
+          "Label any generated/synthetic content appropriately.",
+          "Document compliance measures.",
+        ];
+      case "MINIMAL":
         return [
-          'No mandatory requirements under EU AI Act.',
-          'Consider voluntary codes of conduct.',
-          'Keep documentation for internal governance.',
-          'Monitor for any changes in risk profile.',
-        ]
+          "No mandatory requirements under EU AI Act.",
+          "Consider voluntary codes of conduct.",
+          "Keep documentation for internal governance.",
+          "Monitor for any changes in risk profile.",
+        ];
       default:
-        return ['Review the classification and consult with experts.']
+        return ["Review the classification and consult with experts."];
     }
-  }
+  };
 
-  const steps = getNextSteps(result.riskLevel)
+  const steps = getNextSteps(result.riskLevel);
 
   return (
     <div className="space-y-6">
@@ -1029,7 +1171,7 @@ function Step7NextSteps({
         {steps.map((step, idx) => (
           <div
             key={idx}
-            className="flex items-start gap-3 p-4 bg-black/[0.02] rounded-xl"
+            className="flex items-start gap-3 p-4 bg-black/2 rounded-xl"
           >
             <div className="h-6 w-6 rounded-full bg-primary/10 text-primary flex items-center justify-center text-sm font-medium shrink-0">
               {idx + 1}
@@ -1039,7 +1181,7 @@ function Step7NextSteps({
         ))}
       </div>
 
-      {result.riskLevel === 'HIGH' && (
+      {result.riskLevel === "HIGH" && (
         <div className="p-5 bg-blue-50 border border-blue-200 rounded-xl">
           <h4 className="font-medium text-blue-800 mb-2 flex items-center gap-2">
             <FileText className="h-4 w-4" />
@@ -1058,7 +1200,7 @@ function Step7NextSteps({
         </div>
       )}
     </div>
-  )
+  );
 }
 
 // ============================================
@@ -1070,9 +1212,9 @@ function CheckboxItem({
   onChange,
   label,
 }: {
-  checked: boolean
-  onChange: (value: boolean) => void
-  label: string
+  checked: boolean;
+  onChange: (value: boolean) => void;
+  label: string;
 }): React.JSX.Element {
   return (
     <label className="flex items-center gap-2 cursor-pointer">
@@ -1084,5 +1226,5 @@ function CheckboxItem({
       />
       <span className="text-sm">{label}</span>
     </label>
-  )
+  );
 }

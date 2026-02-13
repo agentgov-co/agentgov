@@ -9,7 +9,8 @@ import type {
   WSBroadcastOptions,
   WSTraceCreated,
   WSSpanCreated,
-  WSTraceUpdated
+  WSTraceUpdated,
+  WSBatchSpansCreated
 } from '../types/websocket.js'
 
 // Rate limiting configuration
@@ -237,6 +238,14 @@ class WebSocketManager {
 
   notifySpanCreated(span: WSSpanCreated['data'], projectId: string): void {
     this.broadcast({ type: 'span:created', data: span }, { projectId, channel: 'spans' })
+  }
+
+  notifyBatchSpansCreated(traceId: string, count: number, projectId: string): void {
+    const message: WSBatchSpansCreated = {
+      type: 'spans:batch-created',
+      data: { traceId, count }
+    }
+    this.broadcast(message, { projectId, channel: 'spans' })
   }
 }
 

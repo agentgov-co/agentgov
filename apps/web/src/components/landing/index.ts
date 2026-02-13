@@ -1,0 +1,21 @@
+// Landing page components barrel export
+export { HeaderNav } from './header-nav'
+export { HeroSection } from './hero-section'
+export { IntegrationsSection } from './integrations-section'
+export { DottedSeparator } from './dotted-separator'
+export { HowItWorksSection } from './how-it-works-section'
+export { CodePreviewSection } from './code-preview-section'
+export { ComplianceSection } from './compliance-section'
+export { MonitoringSection } from './monitoring-section'
+export { FeaturesSection } from './features-section'
+export { PricingSection } from './pricing-section'
+export { FAQWrapper } from './faq-wrapper'
+export { CTASection } from './cta-section'
+export { Footer } from './footer'
+
+// Shared sub-components
+export { SectionLabel } from './section-label'
+export { BorderedContainer } from './bordered-container'
+export { DashboardMockup } from './dashboard-mockup'
+export { ComplianceMockup } from './compliance-mockup'
+export { TimelineMockup } from './timeline-mockup'

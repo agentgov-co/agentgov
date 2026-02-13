@@ -9,6 +9,7 @@ import { logger } from './logger.js'
 import { checkLoginAllowed, recordFailedAttempt, clearFailedAttempts, MAX_ATTEMPTS } from './login-limiter.js'
 import { auditService } from '../services/audit.js'
 import { invalidateOtherSessions } from '../services/session.service.js'
+import { notifyNewUser } from './telegram.js'
 
 const BCRYPT_ROUNDS = 12 // Industry standard for 2025
 
@@ -46,6 +47,14 @@ export const auth = betterAuth({
 
   // Database hooks for session invalidation on password change
   databaseHooks: {
+    user: {
+      create: {
+        after: async (user) => {
+          logger.info({ userId: user.id, email: user.email }, '[Auth] New user registered')
+          notifyNewUser({ name: user.name, email: user.email })
+        },
+      },
+    },
     account: {
       update: {
         after: async (account, ctx) => {
@@ -246,9 +255,10 @@ export const auth = betterAuth({
       secure: process.env.NODE_ENV === 'production',
       path: '/',
     },
-    // Cross-origin settings for OAuth
+    // Cross-subdomain cookies for api.agentgov.co ↔ www.agentgov.co
     crossSubDomainCookies: {
-      enabled: false,
+      enabled: process.env.NODE_ENV === 'production',
+      domain: process.env.COOKIE_DOMAIN || undefined, // .agentgov.co in production
     },
   },
 

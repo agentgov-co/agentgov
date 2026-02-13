@@ -65,7 +65,7 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.route({
     method: 'POST',
     url: '/checkout',
-    preHandler: [requireRole('OWNER', 'ADMIN')],
+    preHandler: [requireRole('owner', 'admin')],
     handler: async (
       request: FastifyRequest<{ Body: CreateCheckoutBody }>,
       reply: FastifyReply
@@ -114,7 +114,7 @@ export async function billingRoutes(fastify: FastifyInstance): Promise<void> {
   fastify.route({
     method: 'POST',
     url: '/portal',
-    preHandler: [requireRole('OWNER', 'ADMIN')],
+    preHandler: [requireRole('owner', 'admin')],
     handler: async (
       request: FastifyRequest<{ Body: CreatePortalBody }>,
       reply: FastifyReply

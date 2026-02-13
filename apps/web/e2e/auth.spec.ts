@@ -1,5 +1,9 @@
 import { test, expect } from '@playwright/test'
 
+// Auth pages (/login, /register) redirect to /dashboard if session cookie exists.
+// Reset storageState so these tests run as unauthenticated visitors.
+test.use({ storageState: { cookies: [], origins: [] } })
+
 test.describe('Authentication', () => {
   test.describe('Registration', () => {
     test('should display registration form', async ({ page }) => {

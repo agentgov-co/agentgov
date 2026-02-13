@@ -43,6 +43,8 @@ export interface TraceInput {
   name?: string
   input?: Record<string, unknown>
   metadata?: Record<string, unknown>
+  /** External ID for idempotency (e.g., OpenAI Agents trace_id) */
+  externalId?: string
 }
 
 export interface Trace {

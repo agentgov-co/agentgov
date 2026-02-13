@@ -326,6 +326,7 @@ export function TwoFactorSettings(): React.JSX.Element {
                     key={index}
                     onClick={() => handleCopyCode(code)}
                     className="flex items-center justify-between p-2 bg-black/5 rounded font-mono text-sm hover:bg-black/10 transition-colors"
+                    aria-label={`Copy backup code ${code}`}
                   >
                     <span>{code}</span>
                     {copiedCode === code ? (

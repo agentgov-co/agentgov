@@ -2,6 +2,7 @@ import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
 import { requireAuth } from '../middleware/auth.js'
 import { prisma } from '../lib/prisma.js'
 import { z } from 'zod'
+import { notifyFeedback } from '../lib/telegram.js'
 
 const CreateFeedbackSchema = z.object({
   type: z.enum(['BUG', 'FEATURE', 'IMPROVEMENT', 'OTHER']).default('OTHER'),
@@ -37,6 +38,13 @@ export async function feedbackRoutes(fastify: FastifyInstance): Promise<void> {
           message: parsed.data.message,
           page: parsed.data.page,
         },
+      })
+
+      notifyFeedback({
+        type: parsed.data.type,
+        message: parsed.data.message,
+        page: parsed.data.page,
+        user: { name: user.name, email: user.email },
       })
 
       return reply.status(201).send(feedback)

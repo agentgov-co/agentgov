@@ -16,14 +16,17 @@
     "db:studio": "prisma studio",
     "db:generate": "prisma generate",
     "db:migrate": "prisma migrate dev",
-    "db:seed": "tsx prisma/seed.ts"
+    "db:seed": "tsx prisma/seed.ts",
+    "migrate:api-keys": "tsx scripts/migrate-project-api-keys.ts",
+    "migrate:member-role": "tsx scripts/migrate-member-role-enum.ts"
   },
   "dependencies": {
+    "@agentgov/shared": "workspace:*",
     "@fastify/cors": "^10.0.0",
     "@fastify/helmet": "^13.0.0",
     "@fastify/rate-limit": "^10.3.0",
     "@fastify/swagger": "^9.6.1",
-    "@fastify/swagger-ui": "^5.2.4",
+    "@fastify/swagger-ui": "^5.2.5",
     "@fastify/websocket": "^11.2.0",
     "@prisma/adapter-pg": "^7.3.0",
     "@prisma/client": "^7.3.0",
@@ -31,7 +34,7 @@
     "bcrypt": "^6.0.0",
     "better-auth": "^1.4.17",
     "dotenv": "^17.2.3",
-    "fastify": "^5.0.0",
+    "fastify": "^5.7.4",
     "fastify-plugin": "^5.1.0",
     "fastify-raw-body": "^5.0.0",
     "ioredis": "^5.3.2",

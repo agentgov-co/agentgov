@@ -3,6 +3,7 @@
 import { useState } from 'react'
 import { useApiKeys, useCreateApiKey, useDeleteApiKey } from '@/hooks/use-api-keys'
 import { useProjects } from '@/hooks/use-projects'
+import { useSelectedProject } from '@/hooks/use-selected-project'
 import { Button } from '@/components/ui/button'
 import { Input } from '@/components/ui/input'
 import { Label } from '@/components/ui/label'
@@ -39,6 +40,7 @@ import { formatDistanceToNow } from 'date-fns'
 export function ApiKeysSettings(): React.JSX.Element {
   const { data: apiKeys, isLoading, error } = useApiKeys()
   const { data: projects } = useProjects()
+  const { selectedProjectId } = useSelectedProject()
   const createApiKey = useCreateApiKey()
   const deleteApiKey = useDeleteApiKey()
 
@@ -48,14 +50,29 @@ export function ApiKeysSettings(): React.JSX.Element {
   const [newKeyExpiry, setNewKeyExpiry] = useState<string>('')
   const [createdKey, setCreatedKey] = useState<string | null>(null)
   const [copiedKey, setCopiedKey] = useState(false)
+  const [copiedSnippet, setCopiedSnippet] = useState(false)
   const [deleteId, setDeleteId] = useState<string | null>(null)
+
+  const quickStartSnippet = `import { AgentGov } from '@agentgov/sdk'
+
+const ag = new AgentGov({
+  apiKey: 'your-api-key-here',
+  projectId: '${selectedProjectId || 'your-project-id'}'
+})`
+
+  const handleCopySnippet = async (): Promise<void> => {
+    await navigator.clipboard.writeText(quickStartSnippet)
+    setCopiedSnippet(true)
+    toast.success('Snippet copied')
+    setTimeout(() => setCopiedSnippet(false), 2000)
+  }
 
   const handleCreate = async (): Promise<void> => {
     try {
       const result = await createApiKey.mutateAsync({
         name: newKeyName,
-        projectId: newKeyProject || undefined,
-        expiresInDays: newKeyExpiry ? parseInt(newKeyExpiry) : undefined,
+        projectId: newKeyProject && newKeyProject !== 'all' ? newKeyProject : undefined,
+        expiresInDays: newKeyExpiry && newKeyExpiry !== 'never' ? parseInt(newKeyExpiry) : undefined,
       })
       setCreatedKey(result.key)
       setNewKeyName('')
@@ -209,7 +226,7 @@ export function ApiKeysSettings(): React.JSX.Element {
                         <SelectValue placeholder="All projects" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">All projects</SelectItem>
+                        <SelectItem value="all">All projects</SelectItem>
                         {projects?.map((project) => (
                           <SelectItem key={project.id} value={project.id}>
                             {project.name}
@@ -229,7 +246,7 @@ export function ApiKeysSettings(): React.JSX.Element {
                         <SelectValue placeholder="Never expires" />
                       </SelectTrigger>
                       <SelectContent>
-                        <SelectItem value="">Never expires</SelectItem>
+                        <SelectItem value="never">Never expires</SelectItem>
                         <SelectItem value="7">7 days</SelectItem>
                         <SelectItem value="30">30 days</SelectItem>
                         <SelectItem value="90">90 days</SelectItem>
@@ -363,14 +380,23 @@ export function ApiKeysSettings(): React.JSX.Element {
 
       {/* Usage Instructions */}
       <div className="bg-black/5 rounded-lg p-4">
-        <h3 className="font-medium mb-2">Quick Start</h3>
-        <pre className="text-sm text-black/70 overflow-x-auto">
-{`import { AgentGov } from '@agentgov/sdk'
-
-const ag = new AgentGov({
-  apiKey: 'your-api-key-here'
-})`}
-        </pre>
+        <div className="flex items-center justify-between mb-2">
+          <h3 className="font-medium">Quick Start</h3>
+          <Button
+            variant="ghost"
+            size="icon"
+            className="h-7 w-7"
+            onClick={handleCopySnippet}
+            aria-label="Copy snippet"
+          >
+            {copiedSnippet ? (
+              <Check className="h-3.5 w-3.5 text-green-600" />
+            ) : (
+              <Copy className="h-3.5 w-3.5" />
+            )}
+          </Button>
+        </div>
+        <pre className="text-sm text-black/70 overflow-x-auto">{quickStartSnippet}</pre>
       </div>
     </div>
   )

@@ -1,6 +1,6 @@
 "use client";
 
-import React, { useState, useEffect, useCallback } from "react";
+import React, { useState, useEffect, useCallback, useRef } from "react";
 import { Activity, Eye, Lock, Zap, BarChart3, Shield } from "lucide-react";
 
 const steps = [
@@ -111,7 +111,9 @@ function Step3Mockup(): React.JSX.Element {
           <div className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5 rounded-full bg-black/10" />
           <div className="w-2.5 sm:w-3.5 h-2.5 sm:h-3.5 rounded-full bg-black/10" />
         </div>
-        <span className="text-xs sm:text-sm text-black/40 ml-2">Trace Details</span>
+        <span className="text-xs sm:text-sm text-black/40 ml-2">
+          Trace Details
+        </span>
       </div>
       <div className="p-4 sm:p-6 space-y-4 sm:space-y-5">
         <div className="flex items-center justify-between">
@@ -213,7 +215,22 @@ export function HowItWorks(): React.JSX.Element {
   const [activeStep, setActiveStep] = useState(0);
   const [isPaused, setIsPaused] = useState(false);
   const [progress, setProgress] = useState(0);
+  const [isVisible, setIsVisible] = useState(false);
+  const sectionRef = useRef<HTMLDivElement>(null);
   const ActiveMockup = mockups[activeStep];
+
+  // Observe visibility to only animate when in viewport
+  useEffect(() => {
+    const el = sectionRef.current;
+    if (!el) return;
+
+    const observer = new IntersectionObserver(
+      ([entry]) => setIsVisible(entry.isIntersecting),
+      { threshold: 0.1 },
+    );
+    observer.observe(el);
+    return () => observer.disconnect();
+  }, []);
 
   const goToNextStep = useCallback(() => {
     setActiveStep((prev) => (prev + 1) % steps.length);
@@ -222,15 +239,15 @@ export function HowItWorks(): React.JSX.Element {
 
   // Auto-switch effect
   useEffect(() => {
-    if (isPaused) return;
+    if (isPaused || !isVisible) return;
 
     const interval = setInterval(goToNextStep, AUTO_SWITCH_INTERVAL);
     return () => clearInterval(interval);
-  }, [isPaused, goToNextStep]);
+  }, [isPaused, isVisible, goToNextStep]);
 
   // Progress bar effect
   useEffect(() => {
-    if (isPaused) {
+    if (isPaused || !isVisible) {
       return;
     }
 
@@ -250,7 +267,7 @@ export function HowItWorks(): React.JSX.Element {
     animationId = requestAnimationFrame(animate);
 
     return () => cancelAnimationFrame(animationId);
-  }, [activeStep, isPaused]);
+  }, [activeStep, isPaused, isVisible]);
 
   const handleStepClick = (index: number): void => {
     setActiveStep(index);
@@ -261,7 +278,7 @@ export function HowItWorks(): React.JSX.Element {
   };
 
   return (
-    <div className="grid lg:grid-cols-2">
+    <div ref={sectionRef} className="grid lg:grid-cols-2">
       {/* Left: Steps list with horizontal dividers */}
       <div className="lg:border-r border-black/10">
         {steps.map((step, i) => (
@@ -270,11 +287,7 @@ export function HowItWorks(): React.JSX.Element {
             onClick={() => handleStepClick(i)}
             className={`relative w-full flex gap-3 sm:gap-4 p-4 sm:p-6 text-left transition-all ${
               i < steps.length - 1 ? "border-b border-black/10" : ""
-            } ${
-              activeStep === i
-                ? "bg-[#7C3AED]/5"
-                : "hover:bg-black/[0.02]"
-            }`}
+            } ${activeStep === i ? "bg-[#7C3AED]/5" : "hover:bg-black/2"}`}
           >
             {/* Left border with progress */}
             <div className="absolute left-0 top-0 bottom-0 w-0.5 bg-black/10">
@@ -286,7 +299,7 @@ export function HowItWorks(): React.JSX.Element {
               )}
             </div>
             <div
-              className={`w-8 h-8 rounded-lg flex items-center justify-center flex-shrink-0 transition-colors ${
+              className={`w-8 h-8 rounded-lg flex items-center justify-center shrink-0 transition-colors ${
                 activeStep === i ? "bg-[#7C3AED] text-white" : "bg-[#7C3AED]/10"
               }`}
             >
@@ -300,7 +313,9 @@ export function HowItWorks(): React.JSX.Element {
               </h3>
               <div
                 className={`grid transition-all duration-300 ease-out ${
-                  activeStep === i ? "grid-rows-[1fr] opacity-100" : "grid-rows-[0fr] opacity-0"
+                  activeStep === i
+                    ? "grid-rows-[1fr] opacity-100"
+                    : "grid-rows-[0fr] opacity-0"
                 }`}
               >
                 <p className="text-sm text-black/50 leading-relaxed overflow-hidden">
@@ -314,7 +329,7 @@ export function HowItWorks(): React.JSX.Element {
 
       {/* Right: Mockup with dotted grid background */}
       <div
-        className="p-4 sm:p-8 lg:p-16 flex items-center justify-center min-h-[350px] sm:min-h-[400px] lg:min-h-[500px] bg-neutral-50"
+        className="p-4 sm:p-8 lg:p-16 flex items-center justify-center min-h-87.5 sm:min-h-100 lg:min-h-125 bg-neutral-50"
         style={{
           backgroundImage: `radial-gradient(circle, rgba(0,0,0,0.07) 1px, transparent 1px)`,
           backgroundSize: "20px 20px",

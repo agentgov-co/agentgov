@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
 import { tracesApi, type Trace, type TracesResponse, type TracesQuery } from '@/lib/api'
 
 export const traceKeys = {
@@ -16,6 +16,8 @@ export function useTraces(query: TracesQuery): UseQueryResult<TracesResponse> {
     queryKey: traceKeys.list(query),
     queryFn: () => tracesApi.list(query),
     enabled: !!query.projectId,
+    staleTime: 30 * 1000, // 30 seconds — traces change frequently
+    placeholderData: keepPreviousData,
   })
 }
 

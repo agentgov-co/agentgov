@@ -124,6 +124,8 @@ jobs:
       BETTER_AUTH_URL: http://localhost:3001
       API_URL: http://localhost:3001
       NEXT_PUBLIC_API_URL: http://localhost:3001
+      E2E_TEST_EMAIL: dev@dev.com
+      E2E_TEST_PASSWORD: dev123
 
     steps:
       - name: Checkout code
@@ -146,6 +148,9 @@ jobs:
 
       - name: Run database migrations
         run: pnpm --filter @agentgov/api exec prisma migrate deploy
+
+      - name: Seed database
+        run: pnpm --filter @agentgov/api db:seed
 
       - name: Install Playwright browsers (chromium only on PRs)
         if: github.event_name == 'pull_request'

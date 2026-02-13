@@ -1,11 +1,11 @@
 import { test, expect } from '@playwright/test'
 
-// Skip dashboard tests in CI - they require real auth session
-// better-auth client doesn't work with page.route() mocking
-const isCI = !!process.env.CI
-
 test.describe('Navigation', () => {
   test.describe('Public pages', () => {
+    // Public pages should not carry auth cookies — visiting /login or
+    // /register with a session cookie causes a redirect to /dashboard.
+    test.use({ storageState: { cookies: [], origins: [] } })
+
     test('should load landing page', async ({ page }) => {
       await page.goto('/')
 
@@ -23,76 +23,18 @@ test.describe('Navigation', () => {
       }
     })
 
-    test('should navigate to register from landing page', async ({ page }) => {
+    test('should have registration link on landing page', async ({ page }) => {
       await page.goto('/')
 
-      // Wait for Next.js hydration before clicking client-side links
-      await page.waitForLoadState('networkidle')
-
-      // Look for sign up / get started link (use first() as there may be multiple)
-      const signUpLink = page.getByRole('link', { name: /sign up|get started|register/i }).first()
-      if (await signUpLink.isVisible()) {
-        await signUpLink.click()
-        // "Get Started" links to /dashboard which redirects to /login without auth
-        await expect(page).toHaveURL(/\/(register|signup|dashboard|login)/, { timeout: 10000 })
-      }
+      // The landing page has CTA links leading to registration or dashboard
+      const ctaLink = page.getByRole('link', { name: /get started|start free/i }).first()
+      await expect(ctaLink).toBeVisible()
+      // Verify the link points to /dashboard or /register
+      await expect(ctaLink).toHaveAttribute('href', /\/(dashboard|register)/)
     })
   })
 
   test.describe('Dashboard navigation', () => {
-    // Skip in CI - requires real auth session
-    test.skip(isCI, 'Dashboard tests require real auth session')
-
-    test.beforeEach(async ({ page, context }) => {
-      // Set session cookie to bypass middleware auth check
-      await context.addCookies([
-        {
-          name: 'agentgov.session_token',
-          value: 'test-session-token',
-          domain: 'localhost',
-          path: '/',
-        },
-      ])
-
-      // Mock auth session
-      await page.route('**/api/auth/get-session', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify({
-            session: {
-              id: 'test-session-id',
-              userId: 'test-user-id',
-              expiresAt: new Date(Date.now() + 86400000).toISOString(),
-            },
-            user: {
-              id: 'test-user-id',
-              name: 'Test User',
-              email: 'test@example.com',
-            },
-          }),
-        })
-      })
-
-      // Mock projects
-      await page.route('**/v1/projects', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([]),
-        })
-      })
-
-      // Mock traces
-      await page.route('**/v1/traces*', async (route) => {
-        await route.fulfill({
-          status: 200,
-          contentType: 'application/json',
-          body: JSON.stringify([]),
-        })
-      })
-    })
-
     test('should navigate to dashboard', async ({ page }) => {
       await page.goto('/dashboard')
 
@@ -102,7 +44,7 @@ test.describe('Navigation', () => {
     test('should navigate to projects page', async ({ page }) => {
       await page.goto('/dashboard/projects')
 
-      await expect(page.getByRole('heading', { name: 'Projects' })).toBeVisible()
+      await expect(page.getByRole('heading', { name: 'Projects', level: 1 })).toBeVisible()
     })
 
     test('should navigate to traces page', async ({ page }) => {
@@ -117,18 +59,23 @@ test.describe('Navigation', () => {
       await expect(page.getByRole('heading', { name: /Settings/i })).toBeVisible()
     })
 
-    test('should have sidebar navigation', async ({ page }) => {
+    test('should have tab navigation', async ({ page, isMobile }) => {
+      test.skip(!!isMobile, 'Tab navigation is hidden on mobile viewports')
       await page.goto('/dashboard')
 
-      // Check for sidebar navigation items
-      await expect(page.getByRole('link', { name: /Dashboard/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Projects/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Traces/i })).toBeVisible()
-      await expect(page.getByRole('link', { name: /Settings/i })).toBeVisible()
+      // Dashboard uses horizontal tab navigation (not sidebar)
+      const nav = page.locator('header nav')
+      await expect(nav.getByRole('link', { name: 'Overview' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Traces' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Projects' })).toBeVisible()
+      await expect(nav.getByRole('link', { name: 'Settings' })).toBeVisible()
     })
   })
 
   test.describe('Responsive design', () => {
+    // Landing page is public — no auth needed
+    test.use({ storageState: { cookies: [], origins: [] } })
+
     test('should be responsive on mobile', async ({ page }) => {
       await page.setViewportSize({ width: 375, height: 667 })
 

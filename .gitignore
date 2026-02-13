@@ -36,6 +36,9 @@ prisma/*.db
 playwright-report/
 test-results/
 
+# Load testing
+load-test-results.json
+
 # Tunneling
 ngrok.yml
 *.ngrok.yml

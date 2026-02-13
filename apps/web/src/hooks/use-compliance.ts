@@ -1,6 +1,6 @@
 'use client'
 
-import { useQuery, useMutation, useQueryClient, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
+import { useQuery, useMutation, useQueryClient, keepPreviousData, type UseQueryResult, type UseMutationResult } from '@tanstack/react-query'
 import {
   complianceApi,
   type AISystemsQuery,
@@ -51,6 +51,7 @@ export function useComplianceSystems(query: AISystemsQuery = {}): UseQueryResult
     queryKey: [...complianceKeys.systemsList(query), organization?.id],
     queryFn: () => complianceApi.listSystems(query),
     enabled: isAuthenticated && !!organization,
+    placeholderData: keepPreviousData,
   })
 }
 
@@ -61,6 +62,7 @@ export function useComplianceSystem(id: string): UseQueryResult<AISystem> {
     queryKey: complianceKeys.systemDetail(id),
     queryFn: () => complianceApi.getSystem(id),
     enabled: !!id && isAuthenticated && !!organization,
+    staleTime: 3 * 60 * 1000, // 3 minutes — detail data changes infrequently
   })
 }
 
@@ -116,6 +118,7 @@ export function useComplianceStats(projectId?: string): UseQueryResult<Complianc
     queryKey: [...complianceKeys.stats(projectId), organization?.id],
     queryFn: () => complianceApi.getStats(projectId),
     enabled: isAuthenticated && !!organization,
+    staleTime: 2 * 60 * 1000, // 2 minutes — stats change rarely
   })
 }
 

@@ -19,6 +19,10 @@
     "./vercel-ai": {
       "import": "./dist/wrappers/vercel-ai.js",
       "types": "./dist/wrappers/vercel-ai.d.ts"
+    },
+    "./openai-agents": {
+      "import": "./dist/exporters/openai-agents.js",
+      "types": "./dist/exporters/openai-agents.d.ts"
     }
   },
   "files": [
@@ -62,10 +66,14 @@
     "vitest": "^4.0.18"
   },
   "peerDependencies": {
-    "openai": ">=4.0.0"
+    "openai": ">=4.0.0",
+    "@openai/agents": ">=0.0.10"
   },
   "peerDependenciesMeta": {
     "openai": {
+      "optional": true
+    },
+    "@openai/agents": {
       "optional": true
     }
   },

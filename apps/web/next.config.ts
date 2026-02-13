@@ -25,11 +25,29 @@ const nextConfig: NextConfig = {
   poweredByHeader: false, // Remove X-Powered-By header
   compress: true, // Enable gzip compression
 
-  // Security headers (CSP is set dynamically in middleware.ts)
+  // Security headers
   async headers() {
+    const apiUrl = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
+
+    // Base CSP for static pages (pre-rendered at build time, no nonce available).
+    // Middleware overwrites this with a stricter nonce-based CSP for SSR routes.
+    const staticCsp = [
+      "default-src 'self'",
+      `script-src 'self' 'unsafe-inline' https://va.vercel-scripts.com https://vercel.live https://*.sentry.io https://static.cloudflareinsights.com`,
+      "style-src 'self' 'unsafe-inline'",
+      "img-src 'self' data: https:",
+      `connect-src 'self' ${apiUrl} ws: wss: https://*.sentry.io https://va.vercel-scripts.com https://vercel.live https://cloudflareinsights.com`,
+      "font-src 'self'",
+      "frame-src 'self' https://vercel.live",
+      "frame-ancestors 'none'",
+    ].join('; ')
+
     return [{
       source: '/:path*',
-      headers: buildSecurityHeaders(),
+      headers: [
+        ...buildSecurityHeaders(),
+        { key: 'Content-Security-Policy', value: staticCsp },
+      ],
     }]
   },
 
@@ -57,6 +75,8 @@ const sentryWebpackPluginOptions = {
   // Disable source map upload in development
   disableServerWebpackPlugin: process.env.NODE_ENV !== "production",
   disableClientWebpackPlugin: process.env.NODE_ENV !== "production",
+  // Tree-shake Sentry debug logger code from production bundle
+  disableLogger: true,
 };
 
 export default withSentryConfig(withBundleAnalyzer(nextConfig), sentryWebpackPluginOptions);

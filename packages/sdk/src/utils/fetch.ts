@@ -261,6 +261,10 @@ export class FetchClient {
     return this.request<Span>('POST', '/v1/spans', input)
   }
 
+  async createSpanBatch(spans: SpanInput[]): Promise<{ created: number; total: number }> {
+    return this.request<{ created: number; total: number }>('POST', '/v1/spans/batch', { spans })
+  }
+
   async updateSpan(spanId: string, update: SpanUpdate): Promise<Span> {
     return this.request<Span>('PATCH', `/v1/spans/${spanId}`, update)
   }

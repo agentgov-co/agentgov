@@ -124,7 +124,7 @@ const authPlugin: FastifyPluginAsync = async (fastify) => {
                 id: org.id,
                 name: org.name,
                 slug: org.slug,
-                role: member?.role || 'MEMBER',
+                role: member?.role || 'member',
               }
             }
           } catch {

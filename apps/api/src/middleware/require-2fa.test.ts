@@ -50,20 +50,20 @@ describe('require2FAForPrivilegedRoles', () => {
     expect(reply.status).not.toHaveBeenCalled()
   })
 
-  it('should skip for MEMBER role without 2FA', async () => {
+  it('should skip for member role without 2FA', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: false },
-      organization: { role: 'MEMBER' },
+      organization: { role: 'member' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)
     expect(reply.status).not.toHaveBeenCalled()
   })
 
-  it('should block OWNER without 2FA', async () => {
+  it('should block owner without 2FA', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: false },
-      organization: { role: 'OWNER' },
+      organization: { role: 'owner' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)
@@ -73,10 +73,10 @@ describe('require2FAForPrivilegedRoles', () => {
     )
   })
 
-  it('should block ADMIN without 2FA', async () => {
+  it('should block admin without 2FA', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: false },
-      organization: { role: 'ADMIN' },
+      organization: { role: 'admin' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)
@@ -86,20 +86,20 @@ describe('require2FAForPrivilegedRoles', () => {
     )
   })
 
-  it('should allow OWNER with 2FA enabled', async () => {
+  it('should allow owner with 2FA enabled', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: true },
-      organization: { role: 'OWNER' },
+      organization: { role: 'owner' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)
     expect(reply.status).not.toHaveBeenCalled()
   })
 
-  it('should allow ADMIN with 2FA enabled', async () => {
+  it('should allow admin with 2FA enabled', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: true },
-      organization: { role: 'ADMIN' },
+      organization: { role: 'admin' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)
@@ -109,7 +109,7 @@ describe('require2FAForPrivilegedRoles', () => {
   it('should skip for unknown roles', async () => {
     const request = createMockRequest({
       user: { id: '1', twoFactorEnabled: false },
-      organization: { role: 'VIEWER' },
+      organization: { role: 'viewer' },
     })
     const reply = createMockReply()
     await require2FAForPrivilegedRoles(request, reply)

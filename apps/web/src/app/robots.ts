@@ -10,10 +10,7 @@ export default function robots(): MetadataRoute.Robots {
         allow: '/',
         disallow: ['/dashboard/', '/api/', '/sentry-example-page'],
       },
-      {
-        userAgent: 'GPTBot',
-        disallow: '/',
-      },
+      // === TRAINING БОТЫ — БЛОКИРОВАТЬ ===
       {
         userAgent: 'CCBot',
         disallow: '/',
@@ -21,6 +18,58 @@ export default function robots(): MetadataRoute.Robots {
       {
         userAgent: 'Google-Extended',
         disallow: '/',
+      },
+      {
+        userAgent: 'Bytespider',
+        disallow: '/',
+      },
+      {
+        userAgent: 'Diffbot',
+        disallow: '/',
+      },
+      {
+        userAgent: 'FacebookBot',
+        disallow: '/',
+      },
+      {
+        userAgent: 'omgili',
+        disallow: '/',
+      },
+      // === SEARCH/BROWSE БОТЫ — ЯВНО РАЗРЕШИТЬ ===
+      {
+        userAgent: 'GPTBot',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'ChatGPT-User',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'ClaudeBot',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'Claude-SearchBot',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'PerplexityBot',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'Perplexity-User',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
+      },
+      {
+        userAgent: 'anthropic-ai',
+        allow: '/',
+        disallow: ['/dashboard/', '/api/'],
       },
     ],
     sitemap: `${SITE_URL}/sitemap.xml`,

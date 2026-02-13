@@ -7,6 +7,7 @@ import { checkTraceLimit } from '../middleware/usage.js'
 import { checkApiKeyRateLimit } from '../middleware/rate-limit.js'
 import { wsManager } from '../lib/websocket-manager.js'
 import { usageService } from '../services/usage.service.js'
+import { cached, queryHash, cacheDeletePattern, CACHE_TTL, CACHE_KEYS } from '../lib/redis.js'
 import {
   CreateTraceSchema,
   UpdateTraceSchema,
@@ -36,30 +37,39 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
         ...(search && { name: { contains: search, mode: 'insensitive' as const } })
       }
 
-      const [traces, total] = await Promise.all([
-        prisma.trace.findMany({
-          where,
-          include: {
-            _count: {
-              select: { spans: true }
-            }
-          },
-          orderBy: { startedAt: 'desc' },
-          take: limit,
-          skip: offset
-        }),
-        prisma.trace.count({ where }),
-      ])
+      const cacheKey = `${CACHE_KEYS.TRACES_LIST}${project.id}:${queryHash({ status, search, limit, offset })}`
 
-      return {
-        data: traces,
-        pagination: {
-          total,
-          limit,
-          offset,
-          hasMore: offset + traces.length < total
+      return cached(cacheKey, CACHE_TTL.TRACES_LIST, async () => {
+        const [traces, total] = await Promise.all([
+          prisma.trace.findMany({
+            where,
+            omit: {
+              input: true,
+              output: true,
+              metadata: true,
+            },
+            include: {
+              _count: {
+                select: { spans: true }
+              }
+            },
+            orderBy: { startedAt: 'desc' },
+            take: limit,
+            skip: offset
+          }),
+          prisma.trace.count({ where }),
+        ])
+
+        return {
+          data: traces,
+          pagination: {
+            total,
+            limit,
+            offset,
+            hasMore: offset + traces.length < total
+          }
         }
-      }
+      })
     })
 
     // GET /v1/traces/:id - Get single trace with spans
@@ -147,7 +157,7 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
     sdk.addHook('preHandler', checkApiKeyRateLimit)
     sdk.addHook('preHandler', checkTraceLimit)
 
-    // POST /v1/traces - Create trace
+    // POST /v1/traces - Create trace (or return existing if externalId matches)
     sdk.post('/', { bodyLimit: SDK_BODY_LIMIT }, async (
       request: FastifyRequest<{ Body: CreateTrace & { projectId?: string } }>,
       reply: FastifyReply
@@ -163,13 +173,94 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       try {
+        const { externalId, name, input, metadata } = parsed.data
+
+        // If externalId provided, use upsert for idempotency
+        if (externalId) {
+          const trace = await prisma.trace.upsert({
+            where: {
+              projectId_externalId: {
+                projectId: project.id,
+                externalId
+              }
+            },
+            create: {
+              projectId: project.id,
+              externalId,
+              name,
+              input: input as Prisma.InputJsonValue | undefined,
+              metadata: metadata as Prisma.InputJsonValue | undefined
+            },
+            update: {
+              // Only update name if provided (don't overwrite existing)
+              ...(name && { name })
+            }
+          })
+
+          // Check if this was a new creation or existing trace
+          const isNewTrace = trace.createdAt.getTime() > Date.now() - 1000
+
+          if (isNewTrace) {
+            request.log.info(
+              { traceId: trace.id, externalId, projectId: project.id },
+              'Trace created via upsert (new)'
+            )
+
+            // Invalidate cache and notify
+            cacheDeletePattern(`${CACHE_KEYS.TRACES_LIST}${project.id}:*`).catch((err) => {
+              request.log.warn({ err, projectId: project.id }, 'Failed to invalidate trace list cache')
+            })
+
+            wsManager.notifyTraceCreated({
+              id: trace.id,
+              projectId: trace.projectId,
+              name: trace.name,
+              status: trace.status,
+              startTime: trace.startedAt.toISOString(),
+              endTime: trace.endedAt?.toISOString() ?? null,
+              metadata: trace.metadata as Record<string, unknown> | null,
+              createdAt: trace.createdAt.toISOString()
+            })
+
+            // Increment usage only for new traces
+            if (project.organizationId) {
+              usageService.incrementTraces(project.organizationId).catch((err) => {
+                request.log.warn(
+                  { err, orgId: project.organizationId, traceId: trace.id },
+                  'Failed to increment usage counter'
+                )
+              })
+            }
+
+            return reply.status(201).send(trace)
+          }
+
+          // Idempotent request - return existing trace
+          request.log.debug(
+            { traceId: trace.id, externalId, projectId: project.id },
+            'Trace returned via upsert (existing, idempotent)'
+          )
+          return reply.status(200).send(trace)
+        }
+
+        // No externalId - standard create
         const trace = await prisma.trace.create({
           data: {
             projectId: project.id,
-            name: parsed.data.name,
-            input: parsed.data.input as Prisma.InputJsonValue | undefined,
-            metadata: parsed.data.metadata as Prisma.InputJsonValue | undefined
+            name,
+            input: input as Prisma.InputJsonValue | undefined,
+            metadata: metadata as Prisma.InputJsonValue | undefined
           }
+        })
+
+        request.log.info(
+          { traceId: trace.id, projectId: project.id },
+          'Trace created'
+        )
+
+        // Invalidate trace list cache for this project (non-blocking)
+        cacheDeletePattern(`${CACHE_KEYS.TRACES_LIST}${project.id}:*`).catch((err) => {
+          request.log.warn({ err, projectId: project.id }, 'Failed to invalidate trace list cache')
         })
 
         wsManager.notifyTraceCreated({
@@ -251,6 +342,11 @@ export async function traceRoutes(fastify: FastifyInstance): Promise<void> {
           ...(shouldSetEndTime ? { endedAt: null } : {})
         },
         data: updateData
+      })
+
+      // Invalidate trace list cache for this project (non-blocking)
+      cacheDeletePattern(`${CACHE_KEYS.TRACES_LIST}${project.id}:*`).catch((err) => {
+        request.log.warn({ err, projectId: project.id }, 'Failed to invalidate trace list cache')
       })
 
       wsManager.notifyTraceUpdated({

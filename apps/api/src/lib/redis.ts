@@ -1,3 +1,4 @@
+import { createHash } from 'crypto'
 import { Redis } from 'ioredis'
 import { recordCacheOperation } from './metrics.js'
 
@@ -42,6 +43,10 @@ export const CACHE_TTL = {
   API_KEY: 5 * 60, // 5 minutes
   PROJECT: 5 * 60, // 5 minutes
   SESSION: 60, // 1 minute
+  COMPLIANCE_STATS: 60, // 1 minute — dashboard stats (5 parallel queries)
+  COMPLIANCE_SYSTEMS: 60, // 1 minute — systems list
+  COMPLIANCE_SYSTEM: 120, // 2 minutes — system detail (heavy includes)
+  TRACES_LIST: 30, // 30 seconds — trace listings (change frequently)
 } as const
 
 // Cache key prefixes
@@ -49,6 +54,10 @@ export const CACHE_KEYS = {
   API_KEY: 'cache:apikey:',
   PROJECT: 'cache:project:',
   SESSION: 'cache:session:',
+  COMPLIANCE_STATS: 'compliance:stats:',
+  COMPLIANCE_SYSTEMS: 'compliance:systems:',
+  COMPLIANCE_SYSTEM: 'compliance:system:',
+  TRACES_LIST: 'traces:list:',
 } as const
 
 /**
@@ -114,7 +123,9 @@ export async function cacheDelete(key: string): Promise<void> {
 }
 
 /**
- * Delete all keys matching a pattern
+ * Delete all keys matching a pattern using SCAN (non-blocking) + UNLINK (async deletion).
+ * Unlike KEYS which blocks Redis for the entire keyspace scan, scanStream iterates
+ * in batches and UNLINK frees memory asynchronously in a background thread.
  */
 export async function cacheDeletePattern(pattern: string): Promise<void> {
   const client = getRedisClient()
@@ -123,13 +134,54 @@ export async function cacheDeletePattern(pattern: string): Promise<void> {
   }
 
   try {
-    const keys = await client.keys(pattern)
-    if (keys.length > 0) {
-      await client.del(...keys)
-    }
+    const stream = client.scanStream({ match: pattern, count: 100 })
+
+    await new Promise<void>((resolve, reject) => {
+      stream.on('data', (keys: string[]) => {
+        if (keys.length > 0) {
+          stream.pause()
+          client.unlink(...keys)
+            .then(() => stream.resume())
+            .catch((err) => {
+              console.error('Cache unlink error:', err)
+              stream.resume()
+            })
+        }
+      })
+      stream.on('end', resolve)
+      stream.on('error', reject)
+    })
   } catch (err) {
     console.error('Cache delete pattern error:', err)
   }
+}
+
+/**
+ * Cache-aside helper: returns cached value if available, otherwise executes fn and caches result.
+ * Falls back to fn() directly if Redis is unavailable.
+ */
+export async function cached<T>(key: string, ttlSeconds: number, fn: () => Promise<T>): Promise<T> {
+  const existing = await cacheGet<T>(key)
+  if (existing !== null) {
+    return existing
+  }
+
+  const result = await fn()
+  await cacheSet(key, result, ttlSeconds)
+  return result
+}
+
+/**
+ * Create a stable hash from query parameters for use in cache keys.
+ * Uses SHA-256 truncated to 12 hex chars — collision-resistant and deterministic.
+ */
+export function queryHash(params: Record<string, unknown>): string {
+  const sorted = Object.keys(params)
+    .sort()
+    .filter(k => params[k] !== undefined && params[k] !== null)
+    .map(k => `${k}=${String(params[k])}`)
+    .join('&')
+  return createHash('sha256').update(sorted).digest('hex').slice(0, 12)
 }
 
 /**

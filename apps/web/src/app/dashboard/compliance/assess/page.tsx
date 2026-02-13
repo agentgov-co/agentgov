@@ -11,7 +11,7 @@ export default function AssessPage(): React.JSX.Element {
       {/* Header */}
       <div className="bg-white border-b border-black/10 px-6 py-4">
         <div className="flex items-center gap-4">
-          <Button variant="ghost" size="icon" className="h-8 w-8" asChild>
+          <Button variant="ghost" size="icon" className="h-8 w-8" aria-label="Back to compliance" asChild>
             <Link href="/dashboard/compliance">
               <ChevronLeft className="h-5 w-5" />
             </Link>

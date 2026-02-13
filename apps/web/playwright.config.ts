@@ -1,4 +1,7 @@
 import { defineConfig, devices } from '@playwright/test'
+import path from 'node:path'
+
+const authFile = path.join(__dirname, '.auth/user.json')
 
 export default defineConfig({
   testDir: './e2e',
@@ -16,21 +19,31 @@ export default defineConfig({
     screenshot: 'only-on-failure',
   },
   projects: [
+    // Setup project — authenticates once and saves state
+    {
+      name: 'setup',
+      testMatch: /auth\.setup\.ts/,
+    },
+    // Browser projects use saved auth state
     {
       name: 'chromium',
-      use: { ...devices['Desktop Chrome'] },
+      use: { ...devices['Desktop Chrome'], storageState: authFile },
+      dependencies: ['setup'],
     },
     {
       name: 'firefox',
-      use: { ...devices['Desktop Firefox'] },
+      use: { ...devices['Desktop Firefox'], storageState: authFile },
+      dependencies: ['setup'],
     },
     {
       name: 'webkit',
-      use: { ...devices['Desktop Safari'] },
+      use: { ...devices['Desktop Safari'], storageState: authFile },
+      dependencies: ['setup'],
     },
     {
       name: 'mobile-chrome',
-      use: { ...devices['Pixel 5'] },
+      use: { ...devices['Pixel 5'], storageState: authFile },
+      dependencies: ['setup'],
     },
   ],
   webServer: [

@@ -1,3 +1,7 @@
+import type { TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
+
+export type { TraceStatus, SpanType, SpanStatus } from '@agentgov/shared'
+
 const API_URL = process.env.NEXT_PUBLIC_API_URL || 'http://localhost:3001'
 
 type FetchOptions = {
@@ -47,6 +51,15 @@ export function sanitizeApiError(status: number, serverMessage?: string): string
 // Authenticated API (uses session cookies)
 // ============================================
 
+// Custom error for 2FA requirement
+export class TwoFactorRequiredError extends Error {
+  code = '2FA_REQUIRED' as const
+  constructor() {
+    super('Two-factor authentication is required. Please enable 2FA in your account settings.')
+    this.name = 'TwoFactorRequiredError'
+  }
+}
+
 async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promise<T> {
   const { method = 'GET', body, headers = {} } = options
 
@@ -54,7 +67,8 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
     method,
     credentials: 'include', // Send cookies for session auth
     headers: {
-      'Content-Type': 'application/json',
+      // Only set Content-Type when there's a body (DELETE without body fails otherwise)
+      ...(body ? { 'Content-Type': 'application/json' } : {}),
       // CSRF protection: any non-empty value works — the header's purpose is to
       // trigger a CORS preflight, which only whitelisted origins pass.
       'X-CSRF-Token': '1',
@@ -65,6 +79,12 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
 
   if (!response.ok) {
     const error = await response.json().catch(() => ({ error: 'Unknown error' }))
+
+    // Handle 2FA requirement - throw error without redirect (handled in dashboard-layout)
+    if (response.status === 403 && error.code === '2FA_REQUIRED') {
+      throw new TwoFactorRequiredError()
+    }
+
     throw new Error(sanitizeApiError(response.status, error.message || error.error))
   }
 
@@ -114,8 +134,6 @@ export const projectsApi = {
 // ============================================
 // Traces API
 // ============================================
-
-export type TraceStatus = 'RUNNING' | 'COMPLETED' | 'FAILED' | 'CANCELLED'
 
 export interface Trace {
   id: string
@@ -178,16 +196,6 @@ export const tracesApi = {
 // ============================================
 // Spans API
 // ============================================
-
-export type SpanType =
-  | 'LLM_CALL'
-  | 'TOOL_CALL'
-  | 'AGENT_STEP'
-  | 'RETRIEVAL'
-  | 'EMBEDDING'
-  | 'CUSTOM'
-
-export type SpanStatus = 'RUNNING' | 'COMPLETED' | 'FAILED'
 
 export interface Span {
   id: string
@@ -724,4 +732,21 @@ export const complianceApi = {
     if (projectId) params.set('projectId', projectId)
     return fetchAuthApi<ComplianceStats>(`/v1/compliance/stats?${params}`)
   },
+}
+
+// ============================================
+// WebSocket API
+// ============================================
+
+export interface WsTicket {
+  ticket: string
+}
+
+export const wsApi = {
+  /** Get a one-time WebSocket auth ticket (valid 30s) */
+  getTicket: (projectId: string) =>
+    fetchAuthApi<WsTicket>('/v1/ws/ticket', {
+      method: 'POST',
+      body: { projectId },
+    }),
 }

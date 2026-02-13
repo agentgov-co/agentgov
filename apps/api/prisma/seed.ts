@@ -79,7 +79,7 @@ async function main() {
     create: {
       organizationId: org.id,
       userId: user.id,
-      role: 'OWNER',
+      role: 'owner',
     },
   })
   console.log('✓ Member linked')

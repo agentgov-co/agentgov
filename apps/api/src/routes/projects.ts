@@ -1,16 +1,10 @@
 import { FastifyInstance, FastifyRequest, FastifyReply } from 'fastify'
-import { randomBytes, createHash } from 'crypto'
 import { prisma } from '../lib/prisma.js'
 import { requireAuth, requireOrganization } from '../middleware/auth.js'
 import { checkProjectLimit } from '../middleware/usage.js'
 import { CreateProjectSchema, type CreateProject } from '../schemas/index.js'
-
-// Generate API key and hash
-function generateApiKey(): { apiKey: string; hash: string } {
-  const apiKey = `ag_live_${randomBytes(24).toString('hex')}`
-  const hash = createHash('sha256').update(apiKey).digest('hex')
-  return { apiKey, hash }
-}
+import { generateApiKey, apiKeyService } from '../services/api-key.service.js'
+import { auditService } from '../services/audit.js'
 
 export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
   // Require session auth and organization context
@@ -60,15 +54,44 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
       }
 
       const org = request.organization!
-      const { apiKey, hash } = generateApiKey()
+      const user = request.user!
+      const { key: apiKey, hash } = generateApiKey('live')
 
-      const project = await prisma.project.create({
-        data: {
-          name: parsed.data.name,
-          description: parsed.data.description,
-          apiKeyHash: hash,
-          organizationId: org.id
-        }
+      // Create project and API key atomically in a transaction
+      const project = await prisma.$transaction(async (tx) => {
+        // Create the project
+        const newProject = await tx.project.create({
+          data: {
+            name: parsed.data.name,
+            description: parsed.data.description,
+            apiKeyHash: hash,
+            organizationId: org.id
+          }
+        })
+
+        // Create the API key record (visible in Settings > API Keys)
+        await apiKeyService.createForProject(
+          newProject.id,
+          parsed.data.name,
+          user.id,
+          org.id,
+          hash,
+          tx
+        )
+
+        return newProject
+      })
+
+      // Log audit event (outside transaction for performance)
+      await auditService.log({
+        action: 'project.created',
+        userId: user.id,
+        organizationId: org.id,
+        resourceType: 'project',
+        resourceId: project.id,
+        metadata: {
+          projectName: project.name,
+        },
       })
 
       // Return API key only on creation (never stored in plain text)
@@ -114,18 +137,33 @@ export async function projectRoutes(fastify: FastifyInstance): Promise<void> {
   ) => {
     const { id } = request.params
     const org = request.organization!
+    const user = request.user!
 
     // Verify ownership before deletion
     const project = await prisma.project.findUnique({
       where: { id },
-      select: { organizationId: true }
+      select: { organizationId: true, name: true }
     })
 
     if (!project || project.organizationId !== org.id) {
       return reply.status(404).send({ error: 'Project not found' })
     }
 
+    // Delete project (cascades to API keys and traces)
     await prisma.project.delete({ where: { id } })
+
+    // Log audit event
+    await auditService.log({
+      action: 'project.deleted',
+      userId: user.id,
+      organizationId: org.id,
+      resourceType: 'project',
+      resourceId: id,
+      metadata: {
+        projectName: project.name,
+      },
+    })
+
     return reply.status(204).send()
   })
 }

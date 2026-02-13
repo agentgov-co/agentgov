@@ -3,6 +3,14 @@ import Fastify, { FastifyInstance, FastifyRequest } from 'fastify'
 import { createHash, randomBytes } from 'crypto'
 import { spanRoutes } from './spans.js'
 
+// Mock WebSocket manager
+vi.mock('../lib/websocket-manager.js', () => ({
+  wsManager: {
+    notifySpanCreated: vi.fn(),
+    notifyBatchSpansCreated: vi.fn()
+  }
+}))
+
 // Mock auth middleware so we can control session auth behavior
 vi.mock('../middleware/auth.js', () => ({
   authenticateApiKey: async (request: FastifyRequest) => {
@@ -30,7 +38,7 @@ vi.mock('../middleware/auth.js', () => ({
       ;(request as unknown as Record<string, unknown>).organization = {
         id: orgId,
         name: 'Test Org',
-        role: 'OWNER',
+        role: 'owner',
       }
       // No request.project — this is the org-level auth path
     } else if (auth?.startsWith('Bearer session_none_')) {
@@ -90,6 +98,12 @@ vi.mock('../lib/prisma.js', () => ({
         const trace = mockTraces.get(where.id)
         return Promise.resolve(trace || null)
       }),
+      findMany: vi.fn(({ where }) => {
+        const ids = where.id?.in || []
+        return Promise.resolve(
+          ids.map((id: string) => mockTraces.get(id)).filter(Boolean)
+        )
+      }),
       update: vi.fn(({ where, data }) => {
         const trace = mockTraces.get(where.id)
         if (!trace) return Promise.reject(new Error('Not found'))
@@ -123,6 +137,21 @@ vi.mock('../lib/prisma.js', () => ({
         }
         mockSpans.set(span.id, span)
         return Promise.resolve(span)
+      }),
+      createMany: vi.fn(({ data }) => {
+        const spans = Array.isArray(data) ? data : [data]
+        for (const spanData of spans) {
+          const span = {
+            id: `span_${randomBytes(8).toString('hex')}`,
+            ...spanData,
+            status: 'RUNNING',
+            startedAt: new Date(),
+            createdAt: new Date(),
+            updatedAt: new Date()
+          }
+          mockSpans.set(span.id, span)
+        }
+        return Promise.resolve({ count: spans.length })
       }),
       update: vi.fn(({ where, data }) => {
         const span = mockSpans.get(where.id)
@@ -358,6 +387,96 @@ describe('Spans API', () => {
       })
 
       expect(response.statusCode).toBe(401)
+    })
+  })
+
+  describe('POST /v1/spans/batch', () => {
+    it('should create multiple spans in batch', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/spans/batch',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: {
+          spans: [
+            { traceId: TEST_TRACE_ID, name: 'Span 1', type: 'LLM_CALL' },
+            { traceId: TEST_TRACE_ID, name: 'Span 2', type: 'TOOL_CALL' },
+            { traceId: TEST_TRACE_ID, name: 'Span 3', type: 'AGENT_STEP' }
+          ]
+        }
+      })
+
+      expect(response.statusCode).toBe(201)
+      const body = JSON.parse(response.body)
+      expect(body.created).toBe(3)
+      expect(body.total).toBe(3)
+    })
+
+    it('should reject batch with non-existent trace', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/spans/batch',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: {
+          spans: [
+            { traceId: 'nonexistent', name: 'Span 1', type: 'CUSTOM' }
+          ]
+        }
+      })
+
+      expect(response.statusCode).toBe(404)
+    })
+
+    it('should reject batch with trace from different project', async () => {
+      // Create a trace for a different project
+      mockTraces.set('trace_other_project', {
+        id: 'trace_other_project',
+        projectId: 'proj_other',
+        name: 'Other Trace',
+        status: 'RUNNING'
+      })
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/spans/batch',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: {
+          spans: [
+            { traceId: 'trace_other_project', name: 'Span 1', type: 'CUSTOM' }
+          ]
+        }
+      })
+
+      expect(response.statusCode).toBe(403)
+    })
+
+    it('should reject empty batch', async () => {
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/spans/batch',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: {
+          spans: []
+        }
+      })
+
+      expect(response.statusCode).toBe(400)
+    })
+
+    it('should reject batch exceeding max size', async () => {
+      const spans = Array.from({ length: 101 }, (_, i) => ({
+        traceId: TEST_TRACE_ID,
+        name: `Span ${i}`,
+        type: 'CUSTOM'
+      }))
+
+      const response = await app.inject({
+        method: 'POST',
+        url: '/v1/spans/batch',
+        headers: { authorization: `Bearer ${TEST_API_KEY}` },
+        payload: { spans }
+      })
+
+      expect(response.statusCode).toBe(400)
     })
   })
 
