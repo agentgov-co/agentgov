@@ -30,7 +30,7 @@ export async function setupSecurity(fastify: FastifyInstance, nodeEnv: string): 
     origin: nodeEnv === 'production' ? allowedOrigins : allowedOrigins, // Always validate origins
     credentials: true,
     methods: ['GET', 'POST', 'PUT', 'PATCH', 'DELETE', 'OPTIONS'],
-    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-ID'],
+    allowedHeaders: ['Content-Type', 'Authorization', 'X-API-Key', 'X-Request-ID', 'X-CSRF-Token'],
   })
 
   // Raw body parsing for webhook signature verification

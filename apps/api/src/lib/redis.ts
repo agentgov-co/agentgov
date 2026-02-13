@@ -13,15 +13,21 @@ export function getRedisClient(): Redis | null {
   if (!redis) {
     redis = new Redis(process.env.REDIS_URL, {
       maxRetriesPerRequest: 3,
+      enableOfflineQueue: false, // fail-fast: commands error immediately when disconnected
       retryStrategy(times: number) {
-        const delay = Math.min(times * 50, 2000)
+        const delay = Math.min(times * 200, 30_000) // cap 30s to reduce log spam on prolonged outages
         return delay
       },
       lazyConnect: true,
     })
 
+    let lastErrorLog = 0
     redis.on('error', (err: Error) => {
-      console.error('Redis connection error:', err.message)
+      const now = Date.now()
+      if (now - lastErrorLog > 30_000) { // debounce: log at most once per 30s
+        console.error('Redis connection error:', err.message)
+        lastErrorLog = now
+      }
     })
 
     redis.on('connect', () => {

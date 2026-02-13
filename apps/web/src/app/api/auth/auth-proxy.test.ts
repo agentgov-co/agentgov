@@ -93,6 +93,7 @@ describe('AC-2.4: Auth proxy header whitelist', () => {
       'user-agent': 'Mozilla/5.0',
       'origin': 'https://agentgov.io',
       'referer': 'https://agentgov.io/dashboard',
+      'x-csrf-token': '1',
     }
 
     const incoming = makeHeaders(ALLOWED_HEADERS.map(h => [h, values[h]] as [string, string]))

@@ -37,7 +37,7 @@ async function checkDatabase(): Promise<HealthCheckResult> {
 
 export function setupHealth(fastify: FastifyInstance, serverStartTime: number): void {
   // Comprehensive health check
-  fastify.get('/health', { config: { rateLimit: HEALTH_RATE_LIMIT } }, async (): Promise<HealthResponse> => {
+  fastify.get('/health', { config: { rateLimit: HEALTH_RATE_LIMIT } }, async (_request, reply): Promise<HealthResponse> => {
     const [dbCheck, redisCheck] = await Promise.all([
       checkDatabase(),
       checkRedisHealth(),
@@ -47,12 +47,18 @@ export function setupHealth(fastify: FastifyInstance, serverStartTime: number): 
     const usedMB = Math.round(memoryUsage.heapUsed / 1024 / 1024)
     const totalMB = Math.round(memoryUsage.heapTotal / 1024 / 1024)
 
-    // Redis being disabled is OK, but error is degraded
-    const allChecksOk = dbCheck.status === 'ok' &&
-      (redisCheck.status === 'ok' || redisCheck.status === 'disabled')
+    // Redis is a cache — its failure should NOT make the service unhealthy.
+    // Only DB down → unhealthy (503). Redis down → degraded (200).
+    const dbOk = dbCheck.status === 'ok'
+    const redisOk = redisCheck.status === 'ok' || redisCheck.status === 'disabled'
+    const status: HealthResponse['status'] = !dbOk ? 'unhealthy' : !redisOk ? 'degraded' : 'ok'
+
+    if (status === 'unhealthy') {
+      reply.status(503)
+    }
 
     return {
-      status: allChecksOk ? 'ok' : 'degraded',
+      status,
       checks: {
         database: dbCheck,
         redis: redisCheck,

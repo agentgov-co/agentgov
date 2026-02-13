@@ -69,6 +69,9 @@ async function fetchAuthApi<T>(path: string, options: FetchOptions = {}): Promis
     headers: {
       // Only set Content-Type when there's a body (DELETE without body fails otherwise)
       ...(body ? { 'Content-Type': 'application/json' } : {}),
+      // CSRF protection: any non-empty value works — the header's purpose is to
+      // trigger a CORS preflight, which only whitelisted origins pass.
+      'X-CSRF-Token': '1',
       ...headers
     },
     body: body ? JSON.stringify(body) : undefined
