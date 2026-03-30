@@ -62,8 +62,8 @@
   "author": "AgentGov",
   "license": "MIT",
   "devDependencies": {
-    "typescript": "^5.6.0",
-    "vitest": "^4.0.18"
+    "typescript": "^6.0.2",
+    "vitest": "^4.1.2"
   },
   "peerDependencies": {
     "openai": ">=4.0.0",
